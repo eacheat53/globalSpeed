@@ -21,10 +21,16 @@ export class MediaTower {
 
 	constructor() {
 		this.processDoc(window)
+		this.initMutationObserver()
 		gvar.os.stratumServer.wiggleCbs.add(this.handleWiggle)
 		gvar.os.detectOpen.cbs.add(this.handleDetectOpen)
 		window.addEventListener("beforeunload", this.handleUnload, { capture: true })
 		window.addEventListener("blur", this.handleBlur, { capture: true, passive: true })
+		if (document.readyState === "loading") {
+			window.addEventListener("DOMContentLoaded", () => this.scanDocMedia(document), { once: true })
+		} else {
+			this.scanDocMedia(document)
+		}
 	}
 	private handleDetectOpen = () => {
 		this.observer?.disconnect()
@@ -90,11 +96,53 @@ export class MediaTower {
 			this.processMedia(parent)
 		}
 	}
+	private initMutationObserver = () => {
+		if (!window.MutationObserver) return
+		const handleNodes = (nodes: NodeList) => {
+			for (let i = 0; i < nodes.length; i++) {
+				const node = nodes[i]
+				if (node instanceof HTMLMediaElement) {
+					this.processMedia(node)
+				} else if (node instanceof HTMLElement || node instanceof ShadowRoot) {
+					const media = node.querySelectorAll?.("video, audio")
+					media?.forEach((m) => {
+						if (m instanceof HTMLMediaElement) this.processMedia(m)
+					})
+				}
+			}
+		}
+
+		const mo = new MutationObserver((mutations) => {
+			for (const mutation of mutations) {
+				if (mutation.addedNodes?.length) {
+					handleNodes(mutation.addedNodes)
+				}
+			}
+		})
+
+		const observeTarget = () => {
+			const target = document.documentElement || document
+			mo.observe(target, { childList: true, subtree: true })
+		}
+		if (document.documentElement || document.body) {
+			observeTarget()
+		} else {
+			window.addEventListener("DOMContentLoaded", observeTarget, { once: true })
+		}
+	}
+	private scanDocMedia = (root: Document | ShadowRoot) => {
+		try {
+			root.querySelectorAll?.("video, audio")?.forEach((elem) => {
+				if (elem instanceof HTMLMediaElement) this.processMedia(elem)
+			})
+		} catch (err) {}
+	}
 	public processDoc = (doc: Window | ShadowRoot) => {
 		if (this.docs.has(doc)) return
 		this.docs.add(doc)
 		this.ensureDocEventListeners(doc)
 		this.newDocCallbacks.forEach((cb) => cb())
+		this.scanDocMedia(doc instanceof ShadowRoot ? doc : document)
 	}
 	private processMedia = (elem: HTMLMediaElement) => {
 		if (this.media.has(elem)) return
@@ -140,10 +188,14 @@ export class MediaTower {
 		if (e.processed) return
 		e.processed = true
 		delete this.previousTimeUpdate
+		if (e.target instanceof HTMLMediaElement) {
+			this.processMedia(e.target)
+		}
 		this.forceSpeedCallbacks.forEach((cb) => cb())
 	}
 	private handleMediaEventTimeUpdate = (e: Event) => {
 		if (!(e.target instanceof HTMLMediaElement)) return
+		this.processMedia(e.target)
 		assertType<HTMLVideoElement>(e.target)
 
 		if (this.trackFps) {
@@ -176,7 +228,7 @@ export class MediaTower {
 			gvar.ghostMode && e.stopImmediatePropagation()
 			delete (e.target as HTMLMediaElement).gsFpsCount
 			delete (e.target as HTMLMediaElement).gsFpsSum
-			// this.playbackChangeCallbacks.forEach(cb => cb())
+			this.forceSpeedCallbacks.forEach((cb) => cb())
 		} else if (e.type === "emptied") {
 			delete elem.gsMarks
 			delete elem.gsNameless

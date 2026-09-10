@@ -532,7 +532,7 @@ function PromoDismiss() {
 				/>
 			</OptionFieldLabel>
 			<Toggle
-				aria-label={gvar.gsm.options.flags.showPromos}
+				aria-label={"Show promos"}
 				value={true}
 				onChange={() => {
 					setView({ selfPromoHideTsR: Date.now() })

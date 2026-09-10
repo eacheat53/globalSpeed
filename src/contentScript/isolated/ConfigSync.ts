@@ -20,8 +20,6 @@ const ghostModeStatic = [
 	".instagram.com",
 	".descript.com",
 	"www.ccmtv.cn",
-	".douyin.com",
-	".tiktok.com",
 	".linkedin.com",
 	"mooc1.chaoxing.com",
 ].some((site) => (location.hostname || "").includes(site))
