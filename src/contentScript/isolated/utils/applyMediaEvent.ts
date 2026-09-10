@@ -390,17 +390,24 @@ export function applyMediaEvent(elem: HTMLMediaElement, e: MediaEvent) {
 		return
 	}
 
-	if (!elem?.duration) return
 	if (e.type === "PLAYBACK_RATE") {
 		SetPlaybackRate.set(elem, e.value, e.freePitch)
-	} else if (e.type === "SEEK") {
-		seek(elem, e.value, e.relative, e.autoPause, e.wraparound)
+		return
 	} else if (e.type === "PAUSE") {
 		setPause(elem, e.state)
+		return
 	} else if (e.type === "MUTE") {
 		setMute(elem, e.state)
+		return
 	} else if (e.type === "SET_VOLUME") {
 		setVolume(elem, e.value, e.relative)
+		return
+	}
+
+	if (!elem?.duration) return
+
+	if (e.type === "SEEK") {
+		seek(elem, e.value, e.relative, e.autoPause, e.wraparound)
 	} else if (e.type === "SET_MARK") {
 		let lowerCaseKey = (e.key || "").toLowerCase()
 		if (e.key === "::nameless") {

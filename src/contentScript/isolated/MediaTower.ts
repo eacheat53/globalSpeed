@@ -26,11 +26,8 @@ export class MediaTower {
 		gvar.os.detectOpen.cbs.add(this.handleDetectOpen)
 		window.addEventListener("beforeunload", this.handleUnload, { capture: true })
 		window.addEventListener("blur", this.handleBlur, { capture: true, passive: true })
-		if (document.readyState === "loading") {
-			window.addEventListener("DOMContentLoaded", () => this.scanDocMedia(document), { once: true })
-		} else {
-			this.scanDocMedia(document)
-		}
+		this.scanDocMedia(document)
+		document.addEventListener("DOMContentLoaded", () => this.scanDocMedia(document), { once: true })
 	}
 	private handleDetectOpen = () => {
 		this.observer?.disconnect()
@@ -120,15 +117,7 @@ export class MediaTower {
 			}
 		})
 
-		const observeTarget = () => {
-			const target = document.documentElement || document
-			mo.observe(target, { childList: true, subtree: true })
-		}
-		if (document.documentElement || document.body) {
-			observeTarget()
-		} else {
-			window.addEventListener("DOMContentLoaded", observeTarget, { once: true })
-		}
+		mo.observe(document, { childList: true, subtree: true })
 	}
 	private scanDocMedia = (root: Document | ShadowRoot) => {
 		try {
@@ -145,15 +134,16 @@ export class MediaTower {
 		this.scanDocMedia(doc instanceof ShadowRoot ? doc : document)
 	}
 	private processMedia = (elem: HTMLMediaElement) => {
-		if (this.media.has(elem)) return
 		elem.gsKey = elem.gsKey || randomId()
 		const rootNode = elem?.getRootNode()
 		rootNode instanceof ShadowRoot && this.processDoc(rootNode)
 
-		this.ensureMediaEventListeners(elem)
-		elem instanceof HTMLVideoElement && this.observe(elem)
-		this.media.add(elem)
-		this.sendUpdate()
+		if (!this.media.has(elem)) {
+			this.ensureMediaEventListeners(elem)
+			elem instanceof HTMLVideoElement && this.observe(elem)
+			this.media.add(elem)
+			this.sendUpdate()
+		}
 
 		this.forceSpeedCallbacks.forEach((cb) => cb())
 	}
@@ -164,6 +154,8 @@ export class MediaTower {
 		doc.addEventListener("pause", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("volumechange", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("loadedmetadata", this.handleMediaEvent, { capture: true, passive: true })
+		doc.addEventListener("loadeddata", this.handleMediaEvent, { capture: true, passive: true })
+		doc.addEventListener("canplay", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("emptied", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("enterpictureinpicture", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("leavepictureinpicture", this.handleMediaEvent, { capture: true, passive: true })
@@ -177,6 +169,8 @@ export class MediaTower {
 		elem.addEventListener("pause", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("volumechange", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("loadedmetadata", this.handleMediaEvent, { capture: true, passive: true })
+		elem.addEventListener("loadeddata", this.handleMediaEvent, { capture: true, passive: true })
+		elem.addEventListener("canplay", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("emptied", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("ratechange", this.handleMediaEvent, { capture: true, passive: true })
 	}
@@ -185,8 +179,8 @@ export class MediaTower {
 		this.media.forEach((media) => this.ensureMediaEventListeners(media))
 	}
 	private handleInterrupt = (e: Event) => {
-		if (e.processed) return
-		e.processed = true
+		if (e.interruptProcessed) return
+		e.interruptProcessed = true
 		delete this.previousTimeUpdate
 		if (e.target instanceof HTMLMediaElement) {
 			this.processMedia(e.target)
@@ -233,7 +227,7 @@ export class MediaTower {
 			delete elem.gsMarks
 			delete elem.gsNameless
 			resetRateLimit(elem)
-		} else if (e.type === "pause" || e.type === "playing") {
+		} else if (e.type === "pause" || e.type === "playing" || e.type === "play" || e.type === "loadedmetadata" || e.type === "loadeddata" || e.type === "canplay") {
 			this.handleInterrupt(e)
 		}
 
@@ -281,7 +275,11 @@ export class MediaTower {
 	applySpeedToAll = (speed: number, freePitch: boolean) => {
 		if (!speed) return
 		speed = conformSpeed(speed)
+		this.docs.forEach((doc) => {
+			this.scanDocMedia(doc instanceof ShadowRoot ? doc : document)
+		})
 		this.media.forEach((media) => {
+			if (!media.isConnected) return
 			applyMediaEvent(media, { type: "PLAYBACK_RATE", value: speed, freePitch })
 		})
 	}
