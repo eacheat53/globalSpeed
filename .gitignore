@@ -10,4 +10,5 @@ private/
 .agents/
 .claude/
 tools/localeTools/*
+!tools/localeTools/index.cjs
 AGENTS.md
