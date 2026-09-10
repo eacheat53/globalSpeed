@@ -1,5 +1,6 @@
 import { ChangeEvent, RefObject, useEffect, useState } from "react"
-import { round } from "../utils/helper"
+import { gvar } from "@/globalVar"
+import { cn, round } from "../utils/helper"
 import { FloatTooltip } from "./FloatTooltip"
 
 const NUMERIC_REGEX = /^-?(?=[\d\.])\d*(\.\d+)?$/
@@ -13,14 +14,24 @@ type NumericInputProps = {
 	min?: number
 	max?: number
 	rounding?: number
+	displayFixed?: number
 	disabled?: boolean
 	className?: string
+	inputClassName?: string
 	ref?: RefObject<any>
 }
 
 export const NumericInput = (props: NumericInputProps) => {
 	const [ghostValue, setGhostValue] = useState("")
 	const [problem, setProblem] = useState(null as string)
+
+	const formatValue = (value: number) => {
+		if (value == null) return ""
+		const rounded = round(value, props.rounding ?? 4)
+		if (props.displayFixed == null) return `${rounded}`
+		const decimals = (`${rounded}`.split(".")[1] ?? "").length
+		return rounded.toFixed(Math.max(decimals, props.displayFixed))
+	}
 
 	useEffect(() => {
 		setProblem(null)
@@ -29,7 +40,7 @@ export const NumericInput = (props: NumericInputProps) => {
 		} else {
 			let parsedGhostValue = parseFloat(ghostValue)
 			if (parsedGhostValue !== props.value) {
-				setGhostValue(`${round(props.value, props.rounding ?? 4)}`)
+				setGhostValue(formatValue(props.value))
 			}
 		}
 	}, [props.value])
@@ -65,19 +76,19 @@ export const NumericInput = (props: NumericInputProps) => {
 			}
 			setProblem(null)
 		} else {
-			setProblem(`NaN`)
+			setProblem(gvar.gsm.token.invalidNumber)
 		}
 	}
 
 	return (
-		<div ref={props.ref} className={`NumericInput ${props.className || ""}`} style={{ position: "relative" }}>
+		<div ref={props.ref} className={cn("relative", props.className)}>
 			<input
 				disabled={props.disabled ?? false}
 				onBlur={(e) => {
 					setProblem(null)
-					setGhostValue(props.value == null ? "" : `${round(props.value, props.rounding ?? 4)}`)
+					setGhostValue(formatValue(props.value))
 				}}
-				className={problem ? "error" : ""}
+				className={cn("text-center", props.inputClassName, problem && "error")}
 				placeholder={props.placeholder}
 				type="text"
 				onChange={handleOnChange}

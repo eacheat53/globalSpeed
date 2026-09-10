@@ -1,17 +1,24 @@
 import { useState } from "react"
 import { FaPowerOff } from "react-icons/fa"
 import { GoArrowDown, GoArrowUp, GoX } from "react-icons/go"
+import { LuLink2, LuLink2Off } from "react-icons/lu"
+import { Select } from "@/comps/Select"
 import { SliderPlus } from "@/comps/SliderPlus"
 import { Tooltip } from "@/comps/Tooltip"
+import { Button } from "@/comps/ui/button"
 import { SVG_COLOR_MATRIX_PRESETS, SVG_MOSAIC_PRESETS, SVG_RGB_PRESETS, SVG_SPECIAL_PRESETS, svgFilterInfos } from "@/defaults/filters"
 import { SVG_FILTER_ADDITIONAL } from "@/defaults/svgFilterAdditional"
+import { gvar } from "@/globalVar"
 import { SvgFilter } from "@/types"
-import { moveItem, produce } from "@/utils/helper"
-import "./SvgFilterItem.css"
+import { cn, moveItem, produce } from "@/utils/helper"
 
 const MOSAIC_DEFAULT = svgFilterInfos["mosaic"].generate()
 const NOISE_DEFAULT = svgFilterInfos["noise"].generate()
 const MOTION_DEFAULT = svgFilterInfos["motion"].generate()
+const DISTORTION_DEFAULT = svgFilterInfos["distortion"].generate()
+const GLOW_DEFAULT = svgFilterInfos["glow"].generate()
+const CHROMATIC_DEFAULT = svgFilterInfos["chromatic"].generate()
+const SCANLINES_DEFAULT = svgFilterInfos["scanlines"].generate()
 
 export function SvgFilterItem(props: {
 	filter: SvgFilter
@@ -24,9 +31,9 @@ export function SvgFilterItem(props: {
 	const [currentPreset, setCurrentPreset] = useState("")
 
 	return (
-		<div className="SvgFilter">
-			<div className="header">
-				<div className={filter.enabled ? "active" : "muted"}>
+		<div className="mt-3.75 rounded-lg border border-border p-2.5">
+			<div className="mb-1.25 grid grid-cols-[max-content_1fr_max-content_max-content_max-content] items-center gap-x-1.25 text-xl">
+				<div className={cn("hover:opacity-90", filter.enabled ? "text-primary" : "text-muted-foreground")}>
 					<Tooltip title={filter.enabled ? gvar.gsm.token.off : gvar.gsm.token.on}>
 						<FaPowerOff
 							size="1.21rem"
@@ -42,8 +49,9 @@ export function SvgFilterItem(props: {
 				</div>
 				{(gvar.gsm.filter.otherFilters as any)[filter.type]}
 				<Tooltip title={gvar.gsm.token.moveUp}>
-					<button
-						className="icon"
+					<Button
+						variant="icon"
+						size="icon-auto"
 						onClick={() => {
 							listOnChange(
 								produce(list, (d) => {
@@ -53,11 +61,12 @@ export function SvgFilterItem(props: {
 						}}
 					>
 						<GoArrowUp size="1.42rem" />
-					</button>
+					</Button>
 				</Tooltip>
 				<Tooltip title={gvar.gsm.token.moveUp}>
-					<button
-						className="icon"
+					<Button
+						variant="icon"
+						size="icon-auto"
 						onClick={() => {
 							listOnChange(
 								produce(list, (d) => {
@@ -67,49 +76,44 @@ export function SvgFilterItem(props: {
 						}}
 					>
 						<GoArrowDown size="1.42rem" />
-					</button>
+					</Button>
 				</Tooltip>
 				<Tooltip title={gvar.gsm.token.delete}>
-					<button className="icon">
-						<GoX
-							size="1.6rem"
-							onClick={() => {
-								listOnChange(
-									produce(list, (list) => {
-										const idx = list.findIndex((v) => v.id === filter.id)
-										if (idx >= 0) list.splice(idx, 1)
-									}),
-								)
-							}}
-						/>
-					</button>
+					<Button
+						variant="icon"
+						size="icon-auto"
+						onClick={() => {
+							listOnChange(
+								produce(list, (list) => {
+									const idx = list.findIndex((v) => v.id === filter.id)
+									if (idx >= 0) list.splice(idx, 1)
+								}),
+							)
+						}}
+					>
+						<GoX size="1.6rem" />
+					</Button>
 				</Tooltip>
 			</div>
 			{presetInfo && (
-				<div className="presets">
+				<div className="mt-1.75 grid grid-cols-[max-content_1fr] items-center gap-x-1.25">
 					<div>{gvar.gsm.filter.otherFilters.presets}</div>
-					<select
-						value={currentPreset}
-						onChange={(e) => {
-							setCurrentPreset(e.target.value || null)
-							const preset = presetInfo.options.find((o) => o.id === e.target.value)
+					<Select
+						value={currentPreset ?? ""}
+						onChanged={(newValue) => {
+							setCurrentPreset(newValue || null)
+							const preset = presetInfo.options.find((o) => o.id === newValue)
 							preset && presetInfo.handler(filter, onChange, preset)
 						}}
-					>
-						<option value={""}>{"---"}</option>
-						{presetInfo.options.map((opt) => (
-							<option key={opt.id} value={opt.id}>
-								{opt.id}
-							</option>
-						))}
-					</select>
+						options={[{ key: "", value: "---" }, ...presetInfo.options.map((opt) => ({ key: opt.id, value: opt.id }))]}
+					/>
 				</div>
 			)}
-			<div className="core">
+			<div className="mt-1.75">
 				{filter.type === "custom" && (
 					<textarea
 						rows={5}
-						style={{ width: "100%" }}
+						className="w-full"
 						onChange={(e) => {
 							onChange(
 								produce(filter, (v) => {
@@ -317,7 +321,7 @@ export function SvgFilterItem(props: {
 				{filter.type === "posterize" && (
 					<>
 						<SliderPlus
-							label={gvar.gsm.filter.otherFilters.levels}
+							label={gvar.gsm.filter.otherFilters.posterizeLevels}
 							value={filter.posterize}
 							sliderMin={2}
 							sliderMax={20}
@@ -472,6 +476,257 @@ export function SvgFilterItem(props: {
 					</>
 				)}
 
+				{/* Distortion */}
+				{filter.type === "distortion" && (
+					<>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.amount}
+							value={filter.distortion.amount}
+							sliderMin={0}
+							sliderMax={100}
+							sliderStep={1}
+							min={-1000}
+							max={1000}
+							default={DISTORTION_DEFAULT.distortion.amount}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.distortion.amount = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.token.size}
+							value={filter.distortion.size}
+							sliderMin={0}
+							sliderMax={0.99}
+							sliderStep={0.01}
+							min={0}
+							max={0.99}
+							default={DISTORTION_DEFAULT.distortion.size}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.distortion.size = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.command.speed}
+							value={filter.distortion.speed}
+							sliderMin={0}
+							sliderMax={5}
+							sliderStep={0.1}
+							min={0}
+							max={100}
+							default={DISTORTION_DEFAULT.distortion.speed}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.distortion.speed = newValue
+									}),
+								)
+							}}
+						/>
+					</>
+				)}
+
+				{/* Levels */}
+				{filter.type === "levels" && (
+					<>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.blackPoint}
+							value={filter.levels.black}
+							sliderMin={0}
+							sliderMax={1}
+							sliderStep={0.01}
+							min={0}
+							max={1}
+							default={0}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.levels.black = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.whitePoint}
+							value={filter.levels.white}
+							sliderMin={0}
+							sliderMax={1}
+							sliderStep={0.01}
+							min={0}
+							max={1}
+							default={1}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.levels.white = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.gamma}
+							value={filter.levels.gamma}
+							sliderMin={0.1}
+							sliderMax={3}
+							sliderStep={0.05}
+							min={0.01}
+							max={10}
+							default={1}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.levels.gamma = newValue
+									}),
+								)
+							}}
+						/>
+					</>
+				)}
+
+				{/* Glow */}
+				{filter.type === "glow" && (
+					<>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.threshold}
+							value={filter.glow.threshold}
+							sliderMin={0}
+							sliderMax={0.99}
+							sliderStep={0.01}
+							min={0}
+							max={0.99}
+							default={GLOW_DEFAULT.glow.threshold}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.glow.threshold = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.radius}
+							value={filter.glow.radius}
+							sliderMin={0}
+							sliderMax={20}
+							sliderStep={0.5}
+							min={0}
+							max={200}
+							default={GLOW_DEFAULT.glow.radius}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.glow.radius = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.amount}
+							value={filter.glow.amount}
+							sliderMin={0}
+							sliderMax={3}
+							sliderStep={0.05}
+							min={0}
+							max={100}
+							default={GLOW_DEFAULT.glow.amount}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.glow.amount = newValue
+									}),
+								)
+							}}
+						/>
+					</>
+				)}
+
+				{/* Chromatic aberration */}
+				{filter.type === "chromatic" && (
+					<>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.amount}
+							value={filter.chromatic.amount}
+							sliderMin={0}
+							sliderMax={20}
+							sliderStep={0.5}
+							min={-200}
+							max={200}
+							default={CHROMATIC_DEFAULT.chromatic.amount}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.chromatic.amount = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.angle}
+							value={filter.chromatic.angle}
+							sliderMin={0}
+							sliderMax={360}
+							sliderStep={1}
+							min={-360}
+							max={360}
+							default={CHROMATIC_DEFAULT.chromatic.angle}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.chromatic.angle = newValue
+									}),
+								)
+							}}
+						/>
+					</>
+				)}
+
+				{/* Scanlines */}
+				{filter.type === "scanlines" && (
+					<>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.spacing}
+							value={filter.scanlines.spacing}
+							sliderMin={2}
+							sliderMax={40}
+							sliderStep={1}
+							min={2}
+							max={500}
+							default={SCANLINES_DEFAULT.scanlines.spacing}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.scanlines.spacing = newValue
+									}),
+								)
+							}}
+						/>
+						<SliderPlus
+							label={gvar.gsm.filter.otherFilters.amount}
+							value={filter.scanlines.amount}
+							sliderMin={0}
+							sliderMax={1}
+							sliderStep={0.01}
+							min={0}
+							max={1}
+							default={SCANLINES_DEFAULT.scanlines.amount}
+							onChange={(newValue) => {
+								onChange(
+									produce(filter, (v) => {
+										v.scanlines.amount = newValue
+									}),
+								)
+							}}
+						/>
+					</>
+				)}
+
 				{/* Noise */}
 				{filter.type === "noise" && (
 					<>
@@ -510,22 +765,23 @@ export function SvgFilterItem(props: {
 							}}
 						/>
 
-						<div style={{ marginTop: "10px" }}>
-							<span style={{ marginRight: "10px" }}>{gvar.gsm.token.mode}</span>
-							<select
+						<div className="mt-2.5">
+							<span className="mr-2.5">{gvar.gsm.token.mode}</span>
+							<Select
 								value={filter.noise.mode}
-								onChange={(e) => {
+								onChanged={(newValue) => {
 									onChange(
 										produce(filter, (v) => {
-											v.noise.mode = e.target.value
+											v.noise.mode = newValue
 										}),
 									)
 								}}
-							>
-								<option value="hard-light">{gvar.gsm.filter.otherFilters.hardLight}</option>
-								<option value="multiply">{gvar.gsm.filter.otherFilters.multiply}</option>
-								<option value="color-burn">{gvar.gsm.filter.otherFilters.colorBurn}</option>
-							</select>
+								options={[
+									{ key: "hard-light", value: gvar.gsm.filter.otherFilters.hardLight },
+									{ key: "multiply", value: gvar.gsm.filter.otherFilters.multiply },
+									{ key: "color-burn", value: gvar.gsm.filter.otherFilters.colorBurn },
+								]}
+							/>
 						</div>
 					</>
 				)}
@@ -537,9 +793,16 @@ export function SvgFilterItem(props: {
 function AspectLockButton(props: { active: boolean; onClick: () => void }) {
 	return (
 		<Tooltip title={gvar.gsm.token.aspectLock}>
-			<button onClick={props.onClick} style={{ padding: "0px 5px", marginLeft: "10px" }} className={`toggle ${props.active ? "active" : ""}`}>
-				:
-			</button>
+			<Button
+				size="control"
+				variant="ghost"
+				aria-pressed={props.active}
+				aria-label={gvar.gsm.token.aspectLock}
+				className="ml-2.5 px-0 py-0 align-middle text-secondary-foreground"
+				onClick={props.onClick}
+			>
+				{props.active ? <LuLink2 className="size-5" /> : <LuLink2Off className="size-5" />}
+			</Button>
 		</Tooltip>
 	)
 }

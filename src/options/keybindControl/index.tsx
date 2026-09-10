@@ -2,22 +2,26 @@ import { RefObject, useState } from "react"
 import { FaRegEdit } from "react-icons/fa"
 import { Minmax } from "@/comps/Minmax"
 import { Tooltip } from "@/comps/Tooltip"
+import { Button } from "@/comps/ui/button"
+import { gvar } from "@/globalVar"
 import { getSelectedParts, requestSyncContextMenu } from "@/utils/configUtils"
 import { produce } from "@/utils/helper"
 import { CycleInput } from "../../comps/CycleInput"
 import { KeyPicker } from "../../comps/KeyPicker"
+import { makeMenuLabelWithTooltip } from "../../comps/Menu"
 import { ModalText } from "../../comps/ModalText"
 import { NumericInput } from "../../comps/NumericInput"
+import { Select } from "../../comps/Select"
 import { ThrottledTextInput } from "../../comps/ThrottledTextInput"
 import { getDefaultURLCondition } from "../../defaults"
 import { commandInfos } from "../../defaults/commands"
-import { AdjustMode, Keybind, StateOption, Trigger } from "../../types"
+import { AdjustMode, Keybind, KeybindType, StateOption, Trigger } from "../../types"
 import { requestCreateTab } from "../../utils/browserUtils"
-import { domRectGetOffset, feedbackText, isFirefox, isMobile } from "../../utils/helper"
+import { IS_FIREFOX_BUILD } from "../../utils/buildFlags"
+import { domRectGetOffset, feedbackText } from "../../utils/helper"
 import { KebabList, KebabListProps } from "../KebabList"
 import { URLModal } from "../URLModal"
-import { DurationSelect, makeLabelWithTooltip, NameArea } from "./NameArea"
-import "./styles.css"
+import { DurationSelect, NameArea } from "./NameArea"
 
 export type KeybindControlProps = {
 	onChange: (id: string, newValue: Keybind) => void
@@ -29,6 +33,7 @@ export type KeybindControlProps = {
 	virtualInput?: boolean
 	listRef: RefObject<HTMLElement>
 	isLast?: boolean
+	listType: KeybindType
 }
 
 export const KeybindControl = (props: KeybindControlProps) => {
@@ -56,14 +61,16 @@ export const KeybindControl = (props: KeybindControlProps) => {
 		sliderMin = ref.sliderMin
 		sliderMax = ref.sliderMax
 
-		if (adjustMode === AdjustMode.ADD || value.adjustMode === AdjustMode.ITC_REL) {
+		if (adjustMode === AdjustMode.ADD) {
 			min = null
 			max = null
-			defaultValue = adjustMode === AdjustMode.ADD ? ref.step : ref.itcStep
+			defaultValue = ref.step
 		}
 
 		if (adjustMode === AdjustMode.ITC) {
 			showRange = true
+			sliderMin = ref.itcMin ?? sliderMin
+			sliderMax = ref.itcMax ?? sliderMax
 		} else if (adjustMode !== AdjustMode.CYCLE) {
 			showNumericControl = true
 		}
@@ -86,12 +93,32 @@ export const KeybindControl = (props: KeybindControlProps) => {
 			label: gvar.gsm.options.flags.showIndicator,
 			checked: props.hideIndicator ? value.invertIndicator : !value.invertIndicator,
 		})
-	;(value.trigger || 0) === 0 &&
+
+	if (props.listType === "pageKeybinds") {
+		kebabList.push({
+			name: "longPress",
+			checked: !!value.longPress,
+			label: makeMenuLabelWithTooltip(gvar.gsm.options.editor.longPress, gvar.gsm.options.editor.longPressTooltip, "left"),
+		})
+
+		kebabList.push({
+			name: "doubleTap",
+			checked: !!value.doubleTap,
+			label: makeMenuLabelWithTooltip(gvar.gsm.options.editor.doubleTap, gvar.gsm.options.editor.doubleTapTooltip, "left"),
+		})
+
+		kebabList.push({
+			name: "noRepeat",
+			checked: !!value.noRepeat,
+			label: makeMenuLabelWithTooltip(gvar.gsm.options.editor.noRepeat, gvar.gsm.options.editor.noRepeatTooltip, "left"),
+		})
+
 		kebabList.push({
 			name: "blockEvents",
 			checked: !!value.greedy,
-			label: makeLabelWithTooltip(gvar.gsm.token.blockEvents, gvar.gsm.token.blockEventsTooltip, "left"),
+			label: makeMenuLabelWithTooltip(gvar.gsm.token.blockEvents, gvar.gsm.token.blockEventsTooltip, "left"),
 		})
+	}
 
 	props.isLast ||
 		kebabList.push({
@@ -106,12 +133,12 @@ export const KeybindControl = (props: KeybindControlProps) => {
 	}
 
 	return (
-		<div className="KeybindControl">
+		<div className="grid grid-cols-[max-content_minmax(200px,1.5fr)_175px_200px_max-content] items-center gap-x-2.5 [&_select]:[text-align-last:center]">
 			{/* Url condition bubble */}
 			{value.condition && getSelectedParts(value.condition).length ? (
 				<Tooltip title={gvar.gsm.options.rules.conditions}>
 					<div
-						className={`urlBubble`}
+						className="absolute -top-1.25 -right-3 flex h-5.5 min-w-5.5 items-center justify-center rounded-full bg-destructive px-1.5 text-sm text-destructive-foreground"
 						onClick={() => setShow(!show)}
 						onContextMenu={(e) => {
 							if (value.condition) {
@@ -128,9 +155,7 @@ export const KeybindControl = (props: KeybindControlProps) => {
 						{getSelectedParts(value.condition).length}
 					</div>
 				</Tooltip>
-			) : (
-				<div className="displaynone" />
-			)}
+			) : null}
 
 			{/* URL modal */}
 			{!show ? null : (
@@ -172,6 +197,7 @@ export const KeybindControl = (props: KeybindControlProps) => {
 			<Tooltip title={value.enabled ? gvar.gsm.token.off : gvar.gsm.token.on}>
 				<input
 					type="checkbox"
+					aria-label={gvar.gsm.token.on}
 					checked={!!value.enabled}
 					onChange={(e) => {
 						props.onChange(
@@ -188,7 +214,7 @@ export const KeybindControl = (props: KeybindControlProps) => {
 			{/* Name area */}
 			<NameArea command={command} onChange={props.onChange} value={value} hasSpecial={hasSpecial} reference={ref} />
 
-			<div className="talues">
+			<div className="grid gap-y-2.5">
 				<TriggerValues value={value} onChange={props.onChange} virtualInput={props.virtualInput} />
 				{value.allowAlt && adjustMode === AdjustMode.CYCLE && (
 					<TriggerValues value={value} onChange={props.onChange} virtualInput={props.virtualInput} isAlt={true} />
@@ -225,7 +251,7 @@ export const KeybindControl = (props: KeybindControlProps) => {
 
 			{/* Duration with numeric iput  */}
 			{showNumericControl && command.withDuration && (
-				<div className="frmax">
+				<div className="grid grid-cols-[1fr_max-content] gap-x-1.25">
 					<NumericInput
 						placeholder={defaultValue?.toString() ?? null}
 						min={min}
@@ -286,7 +312,7 @@ export const KeybindControl = (props: KeybindControlProps) => {
 			{/* Text input */}
 			{command.valueType === "string" && (
 				<ThrottledTextInput
-					passInput={hasSpecial ? { style: { color: "red" } } : undefined}
+					passInput={{ className: "text-center", style: hasSpecial ? { color: "red" } : undefined }}
 					value={value.valueString}
 					onChange={(v) => {
 						props.onChange(
@@ -317,25 +343,20 @@ export const KeybindControl = (props: KeybindControlProps) => {
 
 			{/* State input  */}
 			{command.valueType === "state" && (
-				<select
+				<Select
+					className="text-center"
+					aria-label={gvar.gsm.token.on}
 					value={value.valueState}
-					onChange={(e) => {
+					onChanged={(newValue) => {
 						props.onChange(
 							value.id,
 							produce(value, (d) => {
-								d.valueState = e.target.value as StateOption
+								d.valueState = newValue as StateOption
 							}),
 						)
 					}}
-				>
-					{(["on", "off", "toggle"] as StateOption[]).map((v) => {
-						return (
-							<option key={v} value={v}>
-								{gvar.gsm.token[v] || ""}
-							</option>
-						)
-					})}
-				</select>
+					options={(["on", "off", "toggle"] as StateOption[]).map((v) => ({ key: v, value: gvar.gsm.token[v] || "" }))}
+				/>
 			)}
 
 			{/* No input */}
@@ -359,6 +380,38 @@ export const KeybindControl = (props: KeybindControlProps) => {
 							produce(value, (d) => {
 								d.greedy = !d.greedy
 								if (d.greedy == null) delete d.greedy
+							}),
+						)
+					} else if (name === "longPress") {
+						props.onChange(
+							value.id,
+							produce(value, (d) => {
+								d.longPress = !d.longPress
+								if (d.longPress) {
+									delete d.doubleTap
+								} else {
+									delete d.longPress
+								}
+							}),
+						)
+					} else if (name === "doubleTap") {
+						props.onChange(
+							value.id,
+							produce(value, (d) => {
+								d.doubleTap = !d.doubleTap
+								if (d.doubleTap) {
+									delete d.longPress
+								} else {
+									delete d.doubleTap
+								}
+							}),
+						)
+					} else if (name === "noRepeat") {
+						props.onChange(
+							value.id,
+							produce(value, (d) => {
+								d.noRepeat = !d.noRepeat
+								if (!d.noRepeat) delete d.noRepeat
 							}),
 						)
 					} else if (name === "autoPause") {
@@ -412,40 +465,36 @@ export const TriggerValues = (props: Props) => {
 		<>
 			{/* Global key picker */}
 			{value.trigger === Trigger.BROWSER && (
-				<div className="globalPicker">
-					<select
+				<div className="grid grid-cols-[1fr_max-content] items-center gap-x-1.75">
+					<Select
+						aria-label={gvar.gsm.token.assign}
 						value={value[keyForGlobal] || "commandA"}
-						onChange={(e) => {
+						onChanged={(newValue) => {
 							props.onChange(
 								value.id,
 								produce(value, (d) => {
-									d[keyForGlobal] = e.target.value
+									d[keyForGlobal] = newValue
 								}),
 							)
 						}}
-					>
-						{"ABCDEFGHIJKLMNOPQRS"
-							.split("")
-							.map((v) => [`command${v}`, `command ${v}`])
-							.map((v) => (
-								<option key={v[0]} value={v[0]}>
-									{v[1]}
-								</option>
-							))}
-					</select>
+						options={"ABCDEFGHIJKLMNOPQRS".split("").map((v) => ({ key: `command${v}`, value: `command ${v}` }))}
+					/>
 					<Tooltip title={gvar.gsm.token.assign}>
-						<button
-							className="icon"
+						<Button
+							variant="icon"
+							size="icon-auto"
+							aria-label={gvar.gsm.token.assign}
+							className="-translate-y-0.5 text-foreground"
 							onClick={() => {
 								requestCreateTab(
-									isFirefox()
+									IS_FIREFOX_BUILD
 										? `https://support.mozilla.org/kb/manage-extension-shortcuts-firefox`
-										: `chrome://extensions/shortcuts/#:~:text=${encodeURIComponent(`Command ${(value[keyForGlobal] || "commandA").slice(7)}`)}`,
+										: `chrome://extensions/shortcuts#:~:text=${encodeURIComponent(`Command ${(value[keyForGlobal] || "commandA").slice(7)}`)}`,
 								)
 							}}
 						>
-							<FaRegEdit className="tr120" />
-						</button>
+							<FaRegEdit className="scale-120" />
+						</Button>
 					</Tooltip>
 				</div>
 			)}
@@ -469,6 +518,7 @@ export const TriggerValues = (props: Props) => {
 			{/* Context menu label */}
 			{value.trigger === 2 && (
 				<ThrottledTextInput
+					passInput={{ className: "text-center" }}
 					placeholder={gvar.gsm.options.editor.menuLabel}
 					value={value[keyForLabel]}
 					onChange={(newValue) => {

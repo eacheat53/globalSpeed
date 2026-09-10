@@ -1,19 +1,23 @@
 import { useEffect, useRef, useState } from "react"
+import { Select, SelectOption } from "@/comps/Select"
+import { Button } from "@/comps/ui/button"
+import { gvar } from "@/globalVar"
 import { getSelectedParts, requestSyncContextMenu } from "@/utils/configUtils"
 import { produce } from "@/utils/helper"
 import { getDefaultURLCondition } from "../defaults"
 import { availableCommandNames, commandInfos, CommandName, getDefaultMenuKeybinds, getDefaultPageKeybinds } from "../defaults/commands"
 import { SetView, useStateView } from "../hooks/useStateView"
 import { CommandGroup, Keybind, KeybindType, StateView, Trigger } from "../types"
-import { areYouSure, isFirefox, isMobile, moveItem, randomId, walkGetKey } from "../utils/helper"
+import { IS_FIREFOX_BUILD } from "../utils/buildFlags"
+import { areYouSure, isMobile, moveItem, randomId, walkGetKey } from "../utils/helper"
 import { CommandWarning } from "./CommandWarning"
 import { DevWarning, DevWarningType, useDevWarningType } from "./DevWarning"
 import { KeybindControl } from "./keybindControl"
 import { List } from "./List"
 import { ListItem } from "./ListItem"
-import { URLModal } from "./URLModal"
-import "./SectionEditor.css"
+import { OptionsSection } from "./OptionsSection"
 import { ShortcutWarning } from "./ShortcutWarning"
+import { URLModal } from "./URLModal"
 
 export function SectionEditor(props: {}) {
 	const [view, setView] = useStateView({
@@ -39,7 +43,7 @@ export function SectionEditor(props: {}) {
 		<>
 			<KeybindSection listKey="pageKeybinds" view={view} setView={setView} showUrlConditions devWarningType={devWarningType} />
 
-			{isFirefox() || isMobile() ? null : (
+			{IS_FIREFOX_BUILD || isMobile() ? null : (
 				<KeybindSection listKey="browserKeybinds" view={view} setView={setView} showUrlConditions devWarningType={devWarningType} />
 			)}
 
@@ -91,9 +95,9 @@ function KeybindSection(props: {
 	const hasJs = keybinds.some((kb) => kb.enabled && kb.command === "runCode")
 
 	return (
-		<div className="section SectionEditor">
+		<OptionsSection>
 			<h2>{getSectionTitle(listKey)}</h2>
-			{!!getSectionSubheader(listKey) && <div className="subHeader">{getSectionSubheader(listKey)}</div>}
+			{!!getSectionSubheader(listKey) && <div className="-mt-2.5 mb-2.5 text-xl italic opacity-50">{getSectionSubheader(listKey)}</div>}
 			{listKey === "pageKeybinds" && <ShortcutWarning isBlockMode={(view.keybindsUrlCondition || getDefaultURLCondition(true)).block} />}
 			{devWarningType ? <DevWarning warningType={hasJs ? devWarningType : DevWarningType.NONE} /> : null}
 			{listKey === "browserKeybinds" && <CommandWarning keybinds={view[listKey] || []} />}
@@ -121,6 +125,7 @@ function KeybindSection(props: {
 						}}
 					>
 						<KeybindControl
+							listType={listKey}
 							virtualInput={view.virtualInput}
 							isLast={i === keybinds.length - 1}
 							listRef={listRef}
@@ -136,7 +141,7 @@ function KeybindSection(props: {
 				))}
 			</List>
 			<SectionControls listKey={listKey} view={view} setView={setView} showUrlConditions={showUrlConditions} />
-		</div>
+		</OptionsSection>
 	)
 }
 
@@ -200,13 +205,12 @@ function onMove(setView: SetView, view: StateView, listKey: KeybindType, id: str
 	if (listKey === "menuKeybinds") requestSyncContextMenu()
 }
 
-type CommandOption = { value: string; label: string; disabled?: boolean }
-const cachedOptions: Partial<Record<KeybindType, CommandOption[]>> = {}
+const cachedOptions: Partial<Record<KeybindType, SelectOption[]>> = {}
 
-function getOptions(listKey: KeybindType): CommandOption[] {
+function getOptions(listKey: KeybindType): SelectOption[] {
 	if (cachedOptions[listKey]) return cachedOptions[listKey]
 
-	const result: CommandOption[] = []
+	const result: SelectOption[] = []
 	let previousGroup: CommandGroup | undefined
 	let hasItems = false
 	availableCommandNames.forEach((command) => {
@@ -215,9 +219,9 @@ function getOptions(listKey: KeybindType): CommandOption[] {
 		if (listKey === "pageKeybinds" && info.prohibitAsPage) return
 		if (listKey === "menuKeybinds" && info.prohibitAsMenu) return
 		if (hasItems && previousGroup !== info.group) {
-			result.push({ label: "------", value: `${command}_group`, disabled: true })
+			result.push({ value: "------", key: `${command}_group`, disabled: true })
 		}
-		result.push({ label: (gvar.gsm.command as any)[command], value: command })
+		result.push({ value: (gvar.gsm.command as any)[command], key: command })
 		previousGroup = info.group
 		hasItems = true
 	})
@@ -233,25 +237,19 @@ function SectionControls(props: { listKey: KeybindType; view: StateView; setView
 	const urlRuleCount = view.keybindsUrlCondition ? getSelectedParts(view.keybindsUrlCondition).length : 0
 
 	return (
-		<div className="sectionControls">
+		<div className="mt-5 grid grid-cols-[repeat(3,max-content)_1fr] items-stretch justify-items-end gap-x-2.5">
 			{/* Primary select */}
-			<select
+			<Select
+				aria-label={gvar.gsm.token.create}
 				value={commandOption}
-				onChange={(e) => {
-					setCommandOption(e.target.value)
+				onChanged={(newValue) => {
+					setCommandOption(newValue)
 				}}
-			>
-				{getOptions(listKey).map((v) => {
-					return (
-						<option key={v.value} disabled={v.disabled} value={v.value}>
-							{v.label}
-						</option>
-					)
-				})}
-			</select>
+				options={getOptions(listKey)}
+			/>
 
 			{/* Create */}
-			<button
+			<Button
 				onClick={(e) => {
 					const newKb = commandInfos[commandOption as CommandName].generate()
 					if (trigger !== Trigger.PAGE) newKb.trigger = trigger
@@ -261,10 +259,10 @@ function SectionControls(props: { listKey: KeybindType; view: StateView; setView
 				}}
 			>
 				{gvar.gsm.token.create}
-			</button>
+			</Button>
 
 			{/* Reset */}
-			<button
+			<Button
 				onClick={(e) => {
 					if (!areYouSure()) return
 					const updates: Partial<StateView> = {
@@ -274,12 +272,12 @@ function SectionControls(props: { listKey: KeybindType; view: StateView; setView
 				}}
 			>
 				{gvar.gsm.token.reset}
-			</button>
+			</Button>
 
 			{/* URL conditions */}
 			{showUrlConditions && view[listKey]?.length > 0 && (
 				<>
-					<button onClick={() => setShow(!show)}>{`${gvar.gsm.options.rules.conditions}: ${urlRuleCount}`}</button>
+					<Button onClick={() => setShow(!show)}>{`${gvar.gsm.options.rules.conditions}: ${urlRuleCount}`}</Button>
 
 					{show && (
 						<URLModal

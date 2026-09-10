@@ -1,6 +1,5 @@
 import { CommandName } from "./defaults/commands"
 import { FilterName } from "./defaults/filters"
-import { TabInfo } from "./utils/browserUtils"
 import { Hotkey } from "./utils/keys"
 
 declare global {
@@ -18,6 +17,7 @@ declare global {
 
 	interface Event {
 		processed?: boolean
+		interruptProcessed?: boolean
 	}
 	interface HTMLVideoElement {
 		intersectionRatio: number
@@ -79,6 +79,7 @@ export type State = {
 	firstUse?: number
 	clickedRating?: number
 	speedPresets?: number[]
+	eqPresetOverlay?: EqPresetOverlay
 	speedPresetRows?: number
 	speedPresetPadding?: number
 	speedSmallStep?: number
@@ -92,7 +93,18 @@ export type State = {
 	circleWidget?: boolean
 	circleInit?: CircleInit
 	holdToSpeed?: number
+	longPressThreshold?: number
+	doubleTapThreshold?: number
 	sawEnableShortcutOverlayCount?: number
+	// Will use this to self-promo other projects
+	selfPromoCountR?: number
+	selfPromoFirstR?: number
+	selfPromoHideTsR?: number
+	selfPromoData?: {
+		fetched: number
+		updated?: number
+		config: SelfPromoConfig
+	}
 } & Context
 
 export type StoredKey = `${"t" | "r"}:${number}:${keyof Context | "isPinned"}` | `${"g" | "x"}:${keyof State}`
@@ -106,6 +118,7 @@ export type StateViewSelector = {
 export type IndicatorInit = {
 	backgroundColor?: string
 	textColor?: string
+	outlineWidth?: number
 	scaling?: number
 	rounding?: number
 	duration?: number
@@ -113,7 +126,6 @@ export type IndicatorInit = {
 	static?: boolean
 	position?: "TL" | "TR" | "BL" | "BR" | "C"
 	animation?: 1 | 2 | 3 | 4 | 5
-	showShadow?: boolean
 	key?: string
 }
 
@@ -183,6 +195,19 @@ export const REVERSE_ORL_GROUP = Object.fromEntries(ORL_CONTEXT_KEYS.map((k) => 
 export const AUDIO_CONTEXT_KEYS = ["enabled", "monoOutput", "audioFx", "audioFxAlt", "audioPan"] as (keyof Context)[]
 export const AUDIO_CONTEXT_KEYS_SET = new Set(AUDIO_CONTEXT_KEYS)
 
+export type EqPreset = {
+	name: string
+	values: number[]
+}
+
+/** Diff laid over the built-in equalizer presets, so both kinds can be added to and deleted. */
+export type EqPresetOverlay = {
+	/** Presets the user saved. Wins over a built-in of the same name. */
+	added?: EqPreset[]
+	/** Built-ins the user deleted, as `<bandCount>:<name>`. */
+	removed?: string[]
+}
+
 export type AudioFx = {
 	pitch: number
 	jungleMode?: boolean
@@ -202,7 +227,6 @@ export enum AdjustMode {
 	ADD,
 	CYCLE,
 	ITC,
-	ITC_REL,
 }
 
 export enum Duration {
@@ -248,8 +272,9 @@ export type ReferenceValues = {
 	sliderMin?: number
 	sliderMax?: number
 	sliderStep?: number
-	itcStep?: number
-	wrappable?: boolean
+	/** Interactive range. Narrower than the slider's where dragging the full span is useless. */
+	itcMin?: number
+	itcMax?: number
 }
 
 export enum CommandGroup {
@@ -282,7 +307,6 @@ export type Keybind = {
 	greedy?: boolean
 	ifMedia?: boolean
 	valueNumber?: number
-	valueNumberAlt?: number
 	valueItcMin?: number
 	valueItcMax?: number
 	valueCycle?: number[]
@@ -293,15 +317,10 @@ export type Keybind = {
 	invertIndicator?: boolean
 
 	relativeToSpeed?: boolean
-	fastSeek?: boolean
 	showNetDuration?: number
 	wraparound?: boolean
-	itcWraparound?: boolean
 	autoPause?: boolean
 	skipPauseSmall?: boolean
-	pauseWhileScrubbing?: boolean
-	seekOnce?: boolean
-	noHold?: boolean
 	skipToggleSpeed?: boolean
 	direct?: boolean
 	ignoreNavigate?: boolean
@@ -314,6 +333,9 @@ export type Keybind = {
 	condition?: URLCondition
 	oncePerUp?: boolean
 	alwaysOn?: boolean
+	longPress?: boolean
+	doubleTap?: boolean
+	noRepeat?: boolean
 	cinemaInit?: CinemaInit
 }
 
@@ -419,41 +441,49 @@ export type URLCondition = {
 }
 
 export type MediaProbe = {
-	currentTime: number
-	duration: number
-	paused: boolean
-	volume: number
-	fps: number
 	formatted?: string
 	fullyLooped?: boolean
 }
 
+/** Spawns a persistent slider row on the page for an AdjustMode.ITC keybind. */
 export type ItcInit = {
-	mediaKey?: string
-	dontReleaseKeyUp?: boolean
-	mediaTabInfo?: TabInfo
-	mediaDuration?: number
-	shouldShow?: boolean
 	kb: Keybind
+	label?: string
+	/** Commands (or filters, for fxFilter) the row can be switched to. */
+	related?: ItcRelated[]
 
-	relative?: boolean
-	seekOnce?: boolean
 	resetTo?: number
-	original?: number
-	originalAlt?: number
-
 	step?: number
 	min?: number
 	max?: number
 
 	sliderMin?: number
 	sliderMax?: number
+}
 
-	wasPaused?: boolean
+export type ItcRelated = {
+	/** A CommandName, or a FilterName when the keybind's command is fxFilter. */
+	key: string
+	label: string
 }
 
 export type SvgFilter = {
-	type: "mosaic" | "custom" | "colorMatrix" | "blur" | "posterize" | "sharpen" | "special" | "rgb" | "noise" | "motion"
+	type:
+		| "mosaic"
+		| "custom"
+		| "colorMatrix"
+		| "blur"
+		| "posterize"
+		| "sharpen"
+		| "special"
+		| "rgb"
+		| "noise"
+		| "motion"
+		| "distortion"
+		| "levels"
+		| "glow"
+		| "chromatic"
+		| "scanlines"
 	enabled?: boolean
 	id?: string
 	text?: string
@@ -462,6 +492,11 @@ export type SvgFilter = {
 	posterize?: number
 	motion?: MotionSvgInit
 	noise?: NoiseSvgInit
+	distortion?: DistortionSvgInit
+	levels?: LevelsSvgInit
+	glow?: GlowSvgInit
+	chromatic?: ChromaticSvgInit
+	scanlines?: ScanlinesSvgInit
 	sharpen?: number
 	colorMatrix?: number[]
 	rgb?: number[]
@@ -478,6 +513,34 @@ export type NoiseSvgInit = {
 	size: number
 	speed: number
 	mode: string
+}
+
+export type DistortionSvgInit = {
+	size: number
+	amount: number
+	speed: number
+}
+
+export type LevelsSvgInit = {
+	black: number
+	white: number
+	gamma: number
+}
+
+export type GlowSvgInit = {
+	threshold: number
+	radius: number
+	amount: number
+}
+
+export type ChromaticSvgInit = {
+	amount: number
+	angle: number
+}
+
+export type ScanlinesSvgInit = {
+	spacing: number
+	amount: number
 }
 
 export type MosaicSvgInit = {
@@ -506,3 +569,28 @@ export type MatrixTemplate = {
 }
 
 export type KeybindType = "pageKeybinds" | "browserKeybinds" | "menuKeybinds"
+
+export type SelfPromoStyle = "NEWLINE" | "INLINE"
+
+export type SelfPromoConfig = {
+	groups: SelfPromoGroup[]
+}
+
+/** A group is picked first (weighted by fr), then one of its entries. */
+export type SelfPromoGroup = {
+	entries: SelfPromoEntry[]
+	/** Shown behind a question mark icon. */
+	tooltip: string
+	style?: SelfPromoStyle
+	fr?: number
+}
+
+export type SelfPromoEntry = {
+	primary: string
+	secondary: string
+	link: string
+	fr?: number
+}
+
+/** A picked entry, flattened with its group's shared fields. */
+export type SelfPromoPick = Omit<SelfPromoGroup, "entries"> & SelfPromoEntry

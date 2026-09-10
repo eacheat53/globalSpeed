@@ -1,9 +1,10 @@
 import debounce from "lodash.debounce"
+import { gvar } from "@/globalVar"
+import { IterableWeakSet } from "@/utils/IterableWeakSet"
 import { getShadow } from "@/utils/nativeUtils"
 import { conformSpeed } from "../../utils/configUtils"
 import { assertType, between, randomId } from "../../utils/helper"
-import { IterableWeakSet } from "@/utils/IterableWeakSet"
-import { applyMediaEvent, MediaEvent } from "./utils/applyMediaEvent"
+import { applyMediaEvent, MediaEvent, resetRateLimit } from "./utils/applyMediaEvent"
 import { generateScopeState } from "./utils/genMediaInfo"
 
 const EVENTS_LAST_PLAYED = new Set(["pause", "playing", "timeupdate"])
@@ -20,10 +21,13 @@ export class MediaTower {
 
 	constructor() {
 		this.processDoc(window)
+		this.initMutationObserver()
 		gvar.os.stratumServer.wiggleCbs.add(this.handleWiggle)
 		gvar.os.detectOpen.cbs.add(this.handleDetectOpen)
 		window.addEventListener("beforeunload", this.handleUnload, { capture: true })
 		window.addEventListener("blur", this.handleBlur, { capture: true, passive: true })
+		this.scanDocMedia(document)
+		document.addEventListener("DOMContentLoaded", () => this.scanDocMedia(document), { once: true })
 	}
 	private handleDetectOpen = () => {
 		this.observer?.disconnect()
@@ -89,22 +93,57 @@ export class MediaTower {
 			this.processMedia(parent)
 		}
 	}
+	private initMutationObserver = () => {
+		if (!window.MutationObserver) return
+		const handleNodes = (nodes: NodeList) => {
+			for (let i = 0; i < nodes.length; i++) {
+				const node = nodes[i]
+				if (node instanceof HTMLMediaElement) {
+					this.processMedia(node)
+				} else if (node instanceof HTMLElement || node instanceof ShadowRoot) {
+					const media = node.querySelectorAll?.("video, audio")
+					media?.forEach((m) => {
+						if (m instanceof HTMLMediaElement) this.processMedia(m)
+					})
+				}
+			}
+		}
+
+		const mo = new MutationObserver((mutations) => {
+			for (const mutation of mutations) {
+				if (mutation.addedNodes?.length) {
+					handleNodes(mutation.addedNodes)
+				}
+			}
+		})
+
+		mo.observe(document, { childList: true, subtree: true })
+	}
+	private scanDocMedia = (root: Document | ShadowRoot) => {
+		try {
+			root.querySelectorAll?.("video, audio")?.forEach((elem) => {
+				if (elem instanceof HTMLMediaElement) this.processMedia(elem)
+			})
+		} catch (err) {}
+	}
 	public processDoc = (doc: Window | ShadowRoot) => {
 		if (this.docs.has(doc)) return
 		this.docs.add(doc)
 		this.ensureDocEventListeners(doc)
 		this.newDocCallbacks.forEach((cb) => cb())
+		this.scanDocMedia(doc instanceof ShadowRoot ? doc : document)
 	}
 	private processMedia = (elem: HTMLMediaElement) => {
-		if (this.media.has(elem)) return
 		elem.gsKey = elem.gsKey || randomId()
 		const rootNode = elem?.getRootNode()
 		rootNode instanceof ShadowRoot && this.processDoc(rootNode)
 
-		this.ensureMediaEventListeners(elem)
-		elem instanceof HTMLVideoElement && this.observe(elem)
-		this.media.add(elem)
-		this.sendUpdate()
+		if (!this.media.has(elem)) {
+			this.ensureMediaEventListeners(elem)
+			elem instanceof HTMLVideoElement && this.observe(elem)
+			this.media.add(elem)
+			this.sendUpdate()
+		}
 
 		this.forceSpeedCallbacks.forEach((cb) => cb())
 	}
@@ -115,6 +154,8 @@ export class MediaTower {
 		doc.addEventListener("pause", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("volumechange", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("loadedmetadata", this.handleMediaEvent, { capture: true, passive: true })
+		doc.addEventListener("loadeddata", this.handleMediaEvent, { capture: true, passive: true })
+		doc.addEventListener("canplay", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("emptied", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("enterpictureinpicture", this.handleMediaEvent, { capture: true, passive: true })
 		doc.addEventListener("leavepictureinpicture", this.handleMediaEvent, { capture: true, passive: true })
@@ -128,6 +169,8 @@ export class MediaTower {
 		elem.addEventListener("pause", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("volumechange", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("loadedmetadata", this.handleMediaEvent, { capture: true, passive: true })
+		elem.addEventListener("loadeddata", this.handleMediaEvent, { capture: true, passive: true })
+		elem.addEventListener("canplay", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("emptied", this.handleMediaEvent, { capture: true, passive: true })
 		elem.addEventListener("ratechange", this.handleMediaEvent, { capture: true, passive: true })
 	}
@@ -136,13 +179,17 @@ export class MediaTower {
 		this.media.forEach((media) => this.ensureMediaEventListeners(media))
 	}
 	private handleInterrupt = (e: Event) => {
-		if (e.processed) return
-		e.processed = true
+		if (e.interruptProcessed) return
+		e.interruptProcessed = true
 		delete this.previousTimeUpdate
+		if (e.target instanceof HTMLMediaElement) {
+			this.processMedia(e.target)
+		}
 		this.forceSpeedCallbacks.forEach((cb) => cb())
 	}
 	private handleMediaEventTimeUpdate = (e: Event) => {
 		if (!(e.target instanceof HTMLMediaElement)) return
+		this.processMedia(e.target)
 		assertType<HTMLVideoElement>(e.target)
 
 		if (this.trackFps) {
@@ -175,11 +222,12 @@ export class MediaTower {
 			gvar.ghostMode && e.stopImmediatePropagation()
 			delete (e.target as HTMLMediaElement).gsFpsCount
 			delete (e.target as HTMLMediaElement).gsFpsSum
-			// this.playbackChangeCallbacks.forEach(cb => cb())
+			this.forceSpeedCallbacks.forEach((cb) => cb())
 		} else if (e.type === "emptied") {
 			delete elem.gsMarks
 			delete elem.gsNameless
-		} else if (e.type === "pause" || e.type === "playing") {
+			resetRateLimit(elem)
+		} else if (e.type === "pause" || e.type === "playing" || e.type === "play" || e.type === "loadedmetadata" || e.type === "loadeddata" || e.type === "canplay") {
 			this.handleInterrupt(e)
 		}
 
@@ -227,7 +275,11 @@ export class MediaTower {
 	applySpeedToAll = (speed: number, freePitch: boolean) => {
 		if (!speed) return
 		speed = conformSpeed(speed)
+		this.docs.forEach((doc) => {
+			this.scanDocMedia(doc instanceof ShadowRoot ? doc : document)
+		})
 		this.media.forEach((media) => {
+			if (!media.isConnected) return
 			applyMediaEvent(media, { type: "PLAYBACK_RATE", value: speed, freePitch })
 		})
 	}

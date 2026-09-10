@@ -1,6 +1,17 @@
 import { FaCheck } from "react-icons/fa"
+import { cn } from "@/utils/helper"
 import { ModalBase } from "./ModalBase"
-import "./Menu.css"
+import { RegularTooltip } from "./RegularTooltip"
+import { TooltipProps } from "./Tooltip"
+
+export function makeMenuLabelWithTooltip(name: string, tooltip: string, align: TooltipProps["align"] = "right") {
+	return (
+		<>
+			{name}
+			<RegularTooltip className="ml-2.5 border-background/20 bg-background/15 text-inherit" offset={30} align={align} title={tooltip} />
+		</>
+	)
+}
 
 export type MenuProps = {
 	position: { x?: number; y?: number; aligned?: boolean; centered?: boolean }
@@ -13,15 +24,14 @@ export type MenuProps = {
 export const Menu = (props: MenuProps) => {
 	let centered = props.position.centered
 	return (
-		<ModalBase color={"transparent"} onClose={props.onClose}>
+		<ModalBase className="bg-transparent backdrop-brightness-60" onClose={props.onClose}>
 			<div
 				ref={props.menuRef}
-				style={
-					centered
-						? { maxWidth: "90vw", justifySelf: "center", fontSize: "0.9em", top: "2em" }
-						: { left: `${props.position.x}px`, top: `${props.position.y}px` }
-				}
-				className="Menu"
+				style={centered ? undefined : { left: `${props.position.x}px`, top: `${props.position.y}px` }}
+				className={cn(
+					"fixed z-menu rounded-lg border-2 border-border bg-popover text-popover-foreground select-none",
+					centered && "top-[2em] max-w-[90vw] justify-self-center text-sm",
+				)}
 			>
 				{props.items.map((v) => {
 					const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -30,7 +40,14 @@ export const Menu = (props: MenuProps) => {
 					}
 
 					return (
-						<div key={v.name} onClick={handleClick} className={v.className}>
+						<div
+							key={v.name}
+							onClick={handleClick}
+							className={cn(
+								"grid cursor-pointer grid-cols-[20px_auto] border-b border-border py-1.25 pr-5 pl-2.5 leading-[1.5] opacity-85 hover:opacity-100",
+								v.className,
+							)}
+						>
 							<span>{v.checked === true ? <FaCheck /> : <div>{v.preLabel ?? ""}</div>}</span>
 							<span>{v.label ?? v.name}</span>
 						</div>

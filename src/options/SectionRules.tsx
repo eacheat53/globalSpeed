@@ -1,8 +1,13 @@
 import { RefObject, useRef, useState } from "react"
 import { GearIcon } from "@/comps/GearIcon"
+import { Select } from "@/comps/Select"
 import { Tooltip } from "@/comps/Tooltip"
+import { Button } from "@/comps/ui/button"
+import { gvar } from "@/globalVar"
+import { IS_FIREFOX_BUILD } from "@/utils/buildFlags"
 import { getSelectedParts } from "@/utils/configUtils"
-import { produce } from "@/utils/helper"
+import { moveItem, produce, randomId } from "@/utils/helper"
+import { makeMenuLabelWithTooltip } from "../comps/Menu"
 import { ModalBase } from "../comps/ModalBase"
 import { ModalText } from "../comps/ModalText"
 import { NumericInput } from "../comps/NumericInput"
@@ -10,14 +15,12 @@ import { getDefaultFx, getDefaultURLCondition, getDefaultURLRule } from "../defa
 import { useStateView } from "../hooks/useStateView"
 import { FxControl } from "../popup/FxControl"
 import { URLRule, URLStrictness } from "../types"
-import { isFirefox, moveItem, randomId } from "../utils/helper"
 import { DevWarning } from "./DevWarning"
 import { KebabList, KebabListProps } from "./KebabList"
-import { makeLabelWithTooltip } from "./keybindControl/NameArea"
 import { List } from "./List"
 import { ListItem } from "./ListItem"
+import { OptionsSection } from "./OptionsSection"
 import { URLModal } from "./URLModal"
-import "./SectionRules.css"
 
 export function SectionRules(props: {}) {
 	const [view, setView] = useStateView({ rules: true })
@@ -72,9 +75,9 @@ export function SectionRules(props: {}) {
 	}
 
 	return (
-		<div className="section SectionRules">
+		<OptionsSection>
 			<h2>{gvar.gsm.options.rules.header}</h2>
-			{isFirefox() ? null : <DevWarning forUrlRules={true} hasJs={rules?.some((r) => r.enabled && r.type === "JS")} />}
+			{IS_FIREFOX_BUILD ? null : <DevWarning forUrlRules={true} hasJs={rules?.some((r) => r.enabled && r.type === "JS")} />}
 			<List listRef={listRef} spacingChange={handleSpacingChange}>
 				{rules.map((rule, i) => (
 					<ListItem
@@ -97,10 +100,10 @@ export function SectionRules(props: {}) {
 					</ListItem>
 				))}
 			</List>
-			<button className="create" onClick={(e) => handleChange(getDefaultURLRule())}>
+			<Button className="mt-7.5 block" onClick={(e) => handleChange(getDefaultURLRule())}>
 				{gvar.gsm.token.create}
-			</button>
-		</div>
+			</Button>
+		</OptionsSection>
 	)
 }
 
@@ -120,7 +123,7 @@ export function Rule(props: RuleProps) {
 		{ name: "label", label: gvar.gsm.options.editor.addLabel, close: true },
 		{
 			name: "titleRestrict",
-			label: makeLabelWithTooltip(
+			label: makeMenuLabelWithTooltip(
 				rule.titleRestrict ? gvar.gsm.options.rules.clearTitleKeywords : gvar.gsm.options.rules.setTitleKeywords,
 				gvar.gsm.options.rules.pageTitleTooltip,
 				"left",
@@ -140,7 +143,7 @@ export function Rule(props: RuleProps) {
 	if (rule.type !== "JS") {
 		list.push({
 			name: "strictness",
-			label: makeLabelWithTooltip(gvar.gsm.options.rules.strictness, gvar.gsm.options.rules.strictnessTooltip, "left"),
+			label: makeMenuLabelWithTooltip(gvar.gsm.options.rules.strictness, gvar.gsm.options.rules.strictnessTooltip, "left"),
 			preLabel: `${rule.strictness ?? URLStrictness.DIFFERENT_HOST}`,
 		})
 	}
@@ -153,11 +156,12 @@ export function Rule(props: RuleProps) {
 		})
 
 	return (
-		<div className="Rule">
+		<div className="grid grid-cols-[max-content_600px_1fr_repeat(2,max-content)] items-center gap-x-2.5">
 			{/* Status */}
 			<Tooltip title={rule.enabled ? gvar.gsm.token.off : gvar.gsm.token.on}>
 				<input
 					type="checkbox"
+					aria-label={gvar.gsm.token.on}
 					checked={!!rule.enabled}
 					onChange={(e) => {
 						onChange(
@@ -171,12 +175,11 @@ export function Rule(props: RuleProps) {
 
 			{/* URL conditions entry */}
 			<Tooltip title={gvar.gsm.options.rules.conditions}>
-				<button
-					className="show"
+				<Button
 					onClick={(e) => {
 						setShow(!show)
 					}}
-				>{`— ${rule.condition ? getSelectedParts(rule.condition).length : 0} —`}</button>
+				>{`— ${rule.condition ? getSelectedParts(rule.condition).length : 0} —`}</Button>
 			</Tooltip>
 
 			{/* URL conditions modal */}
@@ -203,27 +206,29 @@ export function Rule(props: RuleProps) {
 			) : null}
 
 			{/* Rule type */}
-			<select
+			<Select
 				value={rule.type}
-				onChange={(e) => {
+				onChanged={(newValue) => {
 					onChange(
 						produce(rule, (d) => {
-							d.type = e.target.value as any
+							d.type = newValue as any
 						}),
 					)
 				}}
-			>
-				<option value="ON">{gvar.gsm.token.on}</option>
-				<option value="OFF">{gvar.gsm.token.off}</option>
-				<option value="SPEED">{gvar.gsm.command.speed}</option>
-				<option value="FX">{gvar.gsm.command.fxFilter}</option>
-				<option value="JS">{gvar.gsm.command.runCode}</option>
-			</select>
+				options={[
+					{ key: "ON", value: gvar.gsm.token.on },
+					{ key: "OFF", value: gvar.gsm.token.off },
+					{ key: "SPEED", value: gvar.gsm.command.speed },
+					{ key: "FX", value: gvar.gsm.command.fxFilter },
+					{ key: "JS", value: gvar.gsm.command.runCode },
+				]}
+			/>
 
-			<div className="left">
+			<div className="grid auto-cols-max grid-flow-col items-center justify-start gap-x-2.5">
 				{/* Speed input  */}
 				{rule.type == "SPEED" && (
 					<NumericInput
+						className="w-15"
 						noNull={true}
 						min={1 / 16}
 						max={16}
@@ -314,11 +319,12 @@ function FxRuleControl(props: FxRuleControlProps) {
 	overrideFx.elementFx = overrideFx.elementFx || getDefaultFx()
 
 	return (
-		<div className="FxControlButton">
+		<div>
 			<GearIcon onClick={(e) => setOpen(!open)} />
 			{open && (
 				<ModalBase keepOnWheel={true} onClose={() => setOpen(false)}>
 					<FxControl
+						className="max-h-[80vh] w-[300px] max-w-[400px] overflow-y-scroll p-2 mobile:max-h-[80%]"
 						enabled={true}
 						_elementFx={overrideFx.elementFx}
 						_backdropFx={overrideFx.backdropFx}

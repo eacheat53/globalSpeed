@@ -1,5 +1,4 @@
 import { RefObject } from "react"
-import "./List.css"
 
 type ListProps = {
 	children: React.ReactNode
@@ -9,7 +8,11 @@ type ListProps = {
 
 export function List(props: ListProps) {
 	return (
-		<div className="List" ref={props.listRef} onPointerDown={(e) => handlePointerDown(props.listRef, props.spacingChange, e)}>
+		<div
+			className="cursor-ns-resize select-none [interpolate-size:allow-keywords]"
+			ref={props.listRef}
+			onPointerDown={(e) => handlePointerDown(props.listRef, props.spacingChange, e)}
+		>
 			{props.children}
 		</div>
 	)
@@ -23,14 +26,14 @@ function handlePointerDown(
 	if (
 		!(
 			e.target === listRef.current ||
-			(e.target as HTMLElement).classList.contains("ListItemLabel") ||
-			(e.target as HTMLElement).classList.contains("ListItemSub")
+			(e.target as HTMLElement).dataset.slot === "list-item-label" ||
+			(e.target as HTMLElement).dataset.slot === "list-item-sub"
 		)
 	)
 		return
 
 	const y = e.clientY
-	const children = [...(listRef.current as HTMLDivElement).getElementsByClassName("ListItemCore")]
+	const children = [...(listRef.current as HTMLDivElement).querySelectorAll<HTMLElement>("[data-slot='list-item-core']")]
 
 	let index = -1
 	for (let child of children) {

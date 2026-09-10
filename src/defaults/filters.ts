@@ -31,8 +31,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMin: 0,
 			sliderMax: 1,
 			default: 0,
-			itcStep: 0.5,
-			wrappable: true,
 		},
 		format: (v) => `sepia(${v})`,
 	},
@@ -43,7 +41,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 180,
 			sliderStep: 1,
 			default: 0,
-			itcStep: 180,
 		},
 		format: (v) => `hue-rotate(${v}deg)`,
 	},
@@ -55,43 +52,44 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMin: 0,
 			sliderMax: 1,
 			default: 0,
-			itcStep: 0.5,
-			wrappable: true,
 		},
 		format: (v) => `grayscale(${v})`,
 	},
 	contrast: {
 		ref: {
+			itcMin: 0.75,
+			itcMax: 1.25,
 			min: 0,
 			step: 0.1,
 			sliderMin: 0,
 			sliderMax: 5,
 			default: 1,
-			itcStep: 2.5,
 		},
 		format: (v) => `contrast(${v})`,
 	},
 	brightness: {
 		ref: {
+			itcMin: 0.5,
+			itcMax: 2,
 			min: 0,
 			step: 0.1,
 			sliderMin: 0,
 			sliderMax: 5,
 			sliderStep: 0.05,
 			default: 1,
-			itcStep: 2.5,
 		},
 		format: (v) => `brightness(${v})`,
 	},
 	saturate: {
 		ref: {
+			itcMin: 0,
+			itcMax: 2,
 			min: 0,
 			step: 0.1,
 			sliderMin: 0,
 			sliderMax: 5,
 			sliderStep: 0.05,
 			default: 1,
-			itcStep: 2.5,
 		},
 		format: (v) => `saturate(${v})`,
 	},
@@ -103,20 +101,19 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMin: 0,
 			sliderMax: 1,
 			default: 0,
-			itcStep: 0.5,
-			wrappable: true,
 		},
 		format: (v) => `invert(${v})`,
 	},
 	blur: {
 		ref: {
+			itcMin: 0,
+			itcMax: 5,
 			min: 0,
 			step: 0.1,
 			sliderMin: 0,
 			sliderMax: 10,
 			sliderStep: 0.1,
 			default: 0,
-			itcStep: 5,
 		},
 		format: (v) => `blur(${v}px)`,
 	},
@@ -128,8 +125,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMin: 0,
 			sliderMax: 1,
 			default: 1,
-			itcStep: 0.5,
-			wrappable: true,
 		},
 		format: (v) => `opacity(${v})`,
 	},
@@ -142,7 +137,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 3,
 			sliderStep: 0.04,
 			default: 1,
-			itcStep: 2,
 		},
 		format: (v) => `scaleX(${v})`,
 	},
@@ -154,7 +148,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 3,
 			sliderStep: 0.04,
 			default: 1,
-			itcStep: 2,
 		},
 		format: (v) => `scaleY(${v})`,
 	},
@@ -166,7 +159,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 300,
 			sliderStep: 5,
 			default: 0,
-			itcStep: 300,
 		},
 		format: (v) => `translateX(${v}px)`,
 	},
@@ -178,7 +170,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 300,
 			sliderStep: 5,
 			default: 0,
-			itcStep: 300,
 		},
 		format: (v) => `translateY(${v}px)`,
 	},
@@ -190,7 +181,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 180,
 			sliderStep: 1,
 			default: 0,
-			itcStep: 180,
 		},
 		format: (v) => `rotateX(${v}deg)`,
 	},
@@ -202,7 +192,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 180,
 			sliderStep: 1,
 			default: 0,
-			itcStep: 180,
 		},
 		format: (v) => `rotateY(${v}deg)`,
 	},
@@ -214,7 +203,6 @@ export const filterInfos: { [key in FilterName]: FilterInfo } = {
 			sliderMax: 180,
 			sliderStep: 1,
 			default: 0,
-			itcStep: 180,
 		},
 		format: (v) => `rotateZ(${v}deg)`,
 	},
@@ -227,7 +215,22 @@ export function getDefaultCinemaFilter() {
 	return filters
 }
 
-export type SvgFilterName = "mosaic" | "colorMatrix" | "posterize" | "blur" | "sharpen" | "special" | "custom" | "rgb" | "noise" | "motion"
+export type SvgFilterName =
+	| "mosaic"
+	| "colorMatrix"
+	| "posterize"
+	| "blur"
+	| "sharpen"
+	| "special"
+	| "custom"
+	| "rgb"
+	| "noise"
+	| "motion"
+	| "distortion"
+	| "levels"
+	| "glow"
+	| "chromatic"
+	| "scanlines"
 
 export const SVG_COLOR_MATRIX_PRESETS: MatrixTemplate[] = [
 	{
@@ -576,6 +579,54 @@ export const svgFilterInfos: {
 				size: 0.8,
 				speed: 1,
 				mode: "hard-light",
+			},
+		}),
+	},
+	distortion: {
+		generate: () => ({
+			type: "distortion",
+			distortion: {
+				size: 0.85,
+				amount: 35,
+				speed: 0,
+			},
+		}),
+	},
+	levels: {
+		generate: () => ({
+			type: "levels",
+			levels: {
+				black: 0,
+				white: 1,
+				gamma: 1,
+			},
+		}),
+	},
+	glow: {
+		generate: () => ({
+			type: "glow",
+			glow: {
+				threshold: 0.6,
+				radius: 2.5,
+				amount: 1,
+			},
+		}),
+	},
+	chromatic: {
+		generate: () => ({
+			type: "chromatic",
+			chromatic: {
+				amount: 3,
+				angle: 0,
+			},
+		}),
+	},
+	scanlines: {
+		generate: () => ({
+			type: "scanlines",
+			scanlines: {
+				spacing: 4,
+				amount: 0.35,
 			},
 		}),
 	},

@@ -1,11 +1,15 @@
 import { useState } from "react"
 import { createRoot } from "react-dom/client"
 import { FaPowerOff } from "react-icons/fa"
+import { gvar } from "@/globalVar"
+import { PageReachableProvider } from "@/hooks/usePageReachable"
 import { useThemeSync } from "@/hooks/useThemeSync"
 import { StateView } from "@/types"
+import { handleFreshState } from "@/utils/configUtils"
 import { loadGsm } from "@/utils/gsm"
-import { isFirefox, isMobile } from "@/utils/helper"
+import { isMobile } from "@/utils/helper"
 import { fetchView } from "@/utils/state"
+import "@/main.css"
 import { AudioPanel } from "notFirefox/popup/AudioPanel"
 import { ErrorFallback } from "../comps/ErrorFallback"
 import { useStateView } from "../hooks/useStateView"
@@ -14,8 +18,7 @@ import { FxPanel } from "./FxPanel"
 import { Header } from "./Header"
 import { MainPanel } from "./MainPanel"
 import { OrlHeader } from "./OrlHeader"
-import "./popup.css"
-import { handleFreshState } from "@/utils/configUtils"
+import "@fontsource-variable/montserrat/wght.css"
 
 declare global {
 	interface GlobalVar {
@@ -34,7 +37,7 @@ export function App(props: {}) {
 
 	return view.superDisable ? (
 		<div
-			id={"SuperDisable"}
+			className="cursor-pointer bg-background p-2.5 text-secondary-foreground"
 			onClick={() => {
 				setView({ superDisable: false, enabled: true })
 			}}
@@ -46,7 +49,7 @@ export function App(props: {}) {
 			<FaPowerOff size="1.78rem" />
 		</div>
 	) : (
-		<div id="App" className={isFirefox() ? "firefox" : ""}>
+		<div>
 			<OrlHeader />
 			<Header panel={panel} setPanel={(v) => setPanel(v)} />
 			{panel === 0 && <MainPanel />}
@@ -74,7 +77,9 @@ Promise.all([
 	const root = createRoot(document.querySelector("#root"))
 	root.render(
 		<ErrorFallback>
-			<App />
+			<PageReachableProvider>
+				<App />
+			</PageReachableProvider>
 		</ErrorFallback>,
 	)
 	chrome.storage.session?.setAccessLevel?.({ accessLevel: chrome.storage.AccessLevel.TRUSTED_AND_UNTRUSTED_CONTEXTS })

@@ -1,12 +1,13 @@
 import { RefObject, useEffect, useRef } from "react"
 import { VscGripper } from "react-icons/vsc"
-import "./MoveDrag.css"
+import { cn } from "@/utils/helper"
 
 type MoveDragProps = {
 	onMove: (newIndex: number) => void
 	itemRef: RefObject<HTMLElement>
 	listRef: RefObject<HTMLElement>
 	setFocus: (focused: boolean) => void
+	className?: string
 }
 
 type Env = {
@@ -19,11 +20,11 @@ export function MoveDrag(props: MoveDragProps) {
 	env.props = props
 
 	useEffect(() => {
-		const handlePointerUp = (e: PointerEvent) => {
+		const handlePointerUp = () => {
 			if (!env.focused) return
 			env.props.setFocus(false)
 			env.focused = null
-			document.documentElement.classList.remove("dragging")
+			document.documentElement.removeAttribute("data-dragging")
 		}
 
 		const handlePointerMove = (e: PointerEvent) => {
@@ -68,15 +69,15 @@ export function MoveDrag(props: MoveDragProps) {
 		}
 	}, [])
 
-	const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+	const handlePointerDown = () => {
 		if (!props.itemRef.current || !props.listRef.current) return
 		props.setFocus(true)
-		document.documentElement.classList.add("dragging")
+		document.documentElement.toggleAttribute("data-dragging", true)
 		env.focused = props.itemRef.current
 	}
 
 	return (
-		<button onPointerDown={handlePointerDown} className="MoveDrag icon">
+		<button onPointerDown={handlePointerDown} className={cn("relative icon-button cursor-ns-resize focus:outline-none", props.className)}>
 			<VscGripper size="1.42rem" />
 		</button>
 	)

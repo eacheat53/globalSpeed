@@ -30,11 +30,6 @@ export const SHORTCUT_ALLOWED_WEBSITES: WebsiteInfo[] = [
 	{ v: "https://www.bbc.com/video" },
 ]
 
-export function turnWebsiteInfoIntoString(info: WebsiteInfo) {
-	if (info.contains) return `contains_${info.v}`
-	return `starts_${info.v}`
-}
-
 export function generateUrlPart(origin: string): URLConditionPart {
 	return {
 		id: randomId(),
@@ -47,7 +42,7 @@ export function generateUrlPart(origin: string): URLConditionPart {
 
 export function getDefaultState(): State {
 	let state = {
-		version: 14,
+		version: 15,
 		freshState: true,
 		firstUse: Date.now(),
 		pageKeybinds: getDefaultPageKeybinds(),
@@ -152,6 +147,7 @@ export const INDICATOR_INIT: IndicatorInit = {
 	position: "TL",
 	backgroundColor: "#000000",
 	textColor: "#ffffff",
+	outlineWidth: 1,
 	scaling: 1,
 	rounding: 4,
 	duration: 1,
@@ -163,5 +159,4 @@ export const INDICATOR_CIRCLE_INIT: IndicatorInit = {
 	position: "C",
 	rounding: 3,
 	scaling: 1.2,
-	showShadow: true,
 }

@@ -1,11 +1,14 @@
 import { Reset } from "@/comps/Reset"
+import { Select } from "@/comps/Select"
 import { SliderMicro } from "@/comps/SliderMicro"
+import { Button } from "@/comps/ui/button"
 import { Indicator } from "@/contentScript/isolated/utils/Indicator"
+import { gvar } from "@/globalVar"
 import { produce, randomId } from "@/utils/helper"
-import { ModalBase } from "../comps/ModalBase"
+import { ModalBase, ModalContent } from "../comps/ModalBase"
 import { INDICATOR_CIRCLE_INIT, INDICATOR_INIT } from "../defaults"
 import { IndicatorInit } from "../types"
-import "./IndicatorModal.css"
+import { OptionField } from "./OptionField"
 
 type Props = {
 	indicator: IndicatorInit
@@ -21,29 +24,31 @@ export function IndicatorModal(props: Props) {
 
 	return (
 		<ModalBase keepOnWheel={true} onClose={props.onClose}>
-			<div className="IndicatorModal ModalMain">
+			<ModalContent size="md">
 				{/* Position */}
-				<div className="field">
+				<OptionField>
 					<span>{gvar.gsm.token.position}</span>
 					<div>
-						<select
-							style={{ marginRight: "10px" }}
+						<Select
+							aria-label={gvar.gsm.token.position}
+							className="mr-2.5"
 							value={init?.position ?? defaultInit.position}
-							onChange={(e) => {
+							onChanged={(newValue) => {
 								const indicatorInit = produce(init ?? {}, (d) => {
-									d.position = e.target.value as any
+									d.position = newValue as any
 									d.key = randomId()
 								})
 								showIndicator(indicatorInit, props.forCircle)
 								onChange(indicatorInit)
 							}}
-						>
-							<option value="TL">{gvar.gsm.token.topLeft}</option>
-							<option value="TR">{gvar.gsm.token.topRight}</option>
-							<option value="BL">{gvar.gsm.token.bottomLeft}</option>
-							<option value="BR">{gvar.gsm.token.bottomRight}</option>
-							<option value="C">{gvar.gsm.token.center}</option>
-						</select>
+							options={[
+								{ key: "TL", value: gvar.gsm.token.topLeft },
+								{ key: "TR", value: gvar.gsm.token.topRight },
+								{ key: "BL", value: gvar.gsm.token.bottomLeft },
+								{ key: "BR", value: gvar.gsm.token.bottomRight },
+								{ key: "C", value: gvar.gsm.token.center },
+							]}
+						/>
 						<Reset
 							onClick={() => {
 								const indicatorInit = produce(init ?? {}, (d) => {
@@ -56,14 +61,15 @@ export function IndicatorModal(props: Props) {
 							active={(init?.position || defaultInit.position) !== defaultInit.position}
 						/>
 					</div>
-				</div>
+				</OptionField>
 
 				{/* Color */}
-				<div className="field">
+				<OptionField>
 					<span>{gvar.gsm.token.color}</span>
-					<div className="colorControl">
+					<div className="grid grid-cols-[repeat(3,max-content)] items-center gap-2.5">
 						<input
 							type="color"
+							aria-label={gvar.gsm.token.color}
 							value={init?.backgroundColor || defaultInit.backgroundColor}
 							onChange={(e) => {
 								const indicatorInit = produce(init ?? {}, (d) => {
@@ -76,6 +82,7 @@ export function IndicatorModal(props: Props) {
 						/>
 						<input
 							type="color"
+							aria-label={gvar.gsm.token.color}
 							value={init?.textColor || defaultInit.textColor}
 							onChange={(e) => {
 								const indicatorInit = produce(init ?? {}, (d) => {
@@ -102,10 +109,30 @@ export function IndicatorModal(props: Props) {
 							}
 						/>
 					</div>
-				</div>
+				</OptionField>
+
+				{/* Outline width */}
+				<OptionField>
+					<span>{gvar.gsm.token.outlineWidth}</span>
+					<SliderMicro
+						value={init?.outlineWidth ?? defaultInit.outlineWidth ?? 1}
+						onChange={(v) => {
+							const indicatorInit = produce(init ?? {}, (d) => {
+								d.outlineWidth = v
+								d.key = randomId()
+							})
+							showIndicator(indicatorInit, props.forCircle)
+							onChange(indicatorInit)
+						}}
+						default={defaultInit.outlineWidth ?? 1}
+						sliderMin={0}
+						sliderMax={2}
+						sliderStep={0.01}
+					/>
+				</OptionField>
 
 				{/* Size */}
-				<div className="field">
+				<OptionField>
 					<span>{gvar.gsm.token.size}</span>
 					<SliderMicro
 						value={init?.scaling ?? defaultInit.scaling}
@@ -122,10 +149,10 @@ export function IndicatorModal(props: Props) {
 						sliderMax={1.5}
 						sliderStep={0.01}
 					/>
-				</div>
+				</OptionField>
 
 				{/* Rounding */}
-				<div className="field">
+				<OptionField>
 					<span>{gvar.gsm.token.rounding}</span>
 					<SliderMicro
 						value={init?.rounding ?? defaultInit.rounding}
@@ -142,11 +169,11 @@ export function IndicatorModal(props: Props) {
 						sliderMax={4}
 						sliderStep={0.01}
 					/>
-				</div>
+				</OptionField>
 
 				{/* Offset */}
 				{(init?.position || defaultInit.position) !== "C" && (
-					<div className="field">
+					<OptionField>
 						<span>{gvar.gsm.token.offset}</span>
 						<SliderMicro
 							value={init?.offset ?? defaultInit.offset}
@@ -163,31 +190,33 @@ export function IndicatorModal(props: Props) {
 							sliderMax={4}
 							sliderStep={0.01}
 						/>
-					</div>
+					</OptionField>
 				)}
 
 				{/* Animation */}
-				<div className="field">
+				<OptionField>
 					<span>{gvar.gsm.token.animation}</span>
 					<div>
-						<select
-							style={{ marginRight: "10px" }}
-							value={init?.animation || 1}
-							onChange={(e) => {
+						<Select
+							aria-label={gvar.gsm.token.animation}
+							className="mr-2.5"
+							value={`${init?.animation || 1}`}
+							onChanged={(newValue) => {
 								const indicatorInit = produce(init ?? {}, (d) => {
-									d.animation = parseInt(e.target.value) as any
+									d.animation = parseInt(newValue) as any
 									d.key = randomId()
 								})
 								showIndicator(indicatorInit, props.forCircle, true)
 								onChange(indicatorInit)
 							}}
-						>
-							<option value="1">{gvar.gsm.token.default}</option>
-							<option value="2">{gvar.gsm.token.static}</option>
-							<option value="3">{gvar.gsm.token.shrink}</option>
-							<option value="4">{gvar.gsm.token.implode}</option>
-							<option value="5">{gvar.gsm.token.rotate}</option>
-						</select>
+							options={[
+								{ key: "1", value: gvar.gsm.token.default },
+								{ key: "2", value: gvar.gsm.token.static },
+								{ key: "3", value: gvar.gsm.token.shrink },
+								{ key: "4", value: gvar.gsm.token.implode },
+								{ key: "5", value: gvar.gsm.token.rotate },
+							]}
+						/>
 						<Reset
 							onClick={() => {
 								const indicatorInit = produce(init ?? {}, (d) => {
@@ -200,12 +229,12 @@ export function IndicatorModal(props: Props) {
 							active={(init?.animation || 1) !== 1}
 						/>
 					</div>
-				</div>
+				</OptionField>
 
 				{/* Duration */}
-				<div className="field">
+				<OptionField>
 					<span>{gvar.gsm.token.duration}</span>
-					<div className="col" style={{ gridColumnGap: "10px" }}>
+					<div className="grid auto-cols-max grid-flow-col gap-x-2.5">
 						<SliderMicro
 							value={init?.duration ?? defaultInit.duration}
 							onChange={(v) => {
@@ -222,18 +251,18 @@ export function IndicatorModal(props: Props) {
 							pass={{ onMouseUp: (v) => showIndicator(init, props.forCircle, true) }}
 						/>
 					</div>
-				</div>
+				</OptionField>
 
 				{/* Reset */}
-				<button
+				<Button
+					size="lg"
 					onClick={(e) => {
 						onChange(null)
 					}}
-					className="reset"
 				>
 					{gvar.gsm.token.reset}
-				</button>
-			</div>
+				</Button>
+			</ModalContent>
 		</ModalBase>
 	)
 }

@@ -1,7 +1,11 @@
 import debounce from "lodash.debounce"
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react"
-import { clamp, inverseLerp, lerp } from "../utils/helper"
-import "./Slider.css"
+import { useCallback, useEffect, useMemo, useState, type ComponentProps, type CSSProperties } from "react"
+import { gvar } from "@/globalVar"
+import { clamp, cn, inverseLerp, lerp } from "../utils/helper"
+
+export function SliderInput({ className, ...props }: Omit<ComponentProps<"input">, "type">) {
+	return <input {...props} className={cn("slider grayscale-75", className)} type="range" />
+}
 
 type SliderProps = {
 	min: number
@@ -12,6 +16,7 @@ type SliderProps = {
 	onChange: (newValue: number) => void
 	maxWait?: number
 	wait?: number
+	className?: string
 }
 
 export function Slider(props: SliderProps) {
@@ -58,11 +63,11 @@ export function Slider(props: SliderProps) {
 	const progressNormal = max === min ? 0 : clamp(0, 1, inverseLerp(min, max, props.value))
 	const sliderStyle = {
 		"--slider-progress": `${progressNormal * 100}%`,
-		...(anchor ? { outline: "2px solid red", transformOrigin: "center", transform: "scaleY(1.5)" } : {}),
 	} as CSSProperties
 
 	return (
-		<input
+		<SliderInput
+			className={cn(anchor && "origin-center scale-y-[1.5] outline-2 outline-[red]", props.className)}
 			title={gvar.gsm.warnings.sliderTooltip}
 			style={sliderStyle}
 			onMouseDown={(e) => {
@@ -72,7 +77,6 @@ export function Slider(props: SliderProps) {
 				e.shiftKey && ensureAnchored()
 			}}
 			onBlur={clearAnchor}
-			type="range"
 			min={min}
 			max={max}
 			step={step}

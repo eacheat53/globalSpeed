@@ -2,9 +2,11 @@ import { useRef, useState } from "react"
 import { FaMicrophone, FaVolumeUp } from "react-icons/fa"
 import { getMediaDataWithScopes } from "@/background/utils/getAutoMedia"
 import { connectReversePort } from "@/background/utils/tabCapture"
+import { ToggleButton } from "@/comps/ToggleButton"
 import { Tooltip } from "@/comps/Tooltip"
+import { gvar } from "@/globalVar"
 import { sendMediaEvent } from "@/utils/configUtils"
-import "./ReverseButton.css"
+import { cn } from "@/utils/helper"
 
 declare global {
 	interface Message {
@@ -14,6 +16,7 @@ declare global {
 
 type ReverseButtonProps = {
 	onActivate?: () => Promise<boolean>
+	className?: string
 }
 
 export function ReverseButton(props: ReverseButtonProps) {
@@ -66,8 +69,11 @@ export function ReverseButton(props: ReverseButtonProps) {
 
 	return (
 		<Tooltip hmr={false} title={status == null ? gvar.gsm.audio.reverseTooltip : ""}>
-			<button
-				className={`toggle ReverseButton ${status == null ? "" : status ? "enabled playing" : "enabled recording"}`}
+			<ToggleButton
+				active={status != null}
+				activeAppearance={false}
+				tone={status === true ? "success" : status === false ? "destructive" : undefined}
+				className={cn("w-full border-[3px] p-1.25 text-2xl leading-[1.5] [&>svg]:mr-2.5", props.className)}
 				onPointerDown={onPointerDown}
 			>
 				{status == null ? (
@@ -86,7 +92,7 @@ export function ReverseButton(props: ReverseButtonProps) {
 						{gvar.gsm.audio.recording}
 					</>
 				)}
-			</button>
+			</ToggleButton>
 		</Tooltip>
 	)
 }

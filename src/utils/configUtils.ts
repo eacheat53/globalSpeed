@@ -1,5 +1,7 @@
+import type { CommandName } from "@/defaults/commands"
 import { svgFilterIsValid } from "@/defaults/filters"
 import { SVG_FILTER_ADDITIONAL } from "@/defaults/svgFilterAdditional"
+import { gvar } from "@/globalVar"
 import type { MediaEvent } from "../contentScript/isolated/utils/applyMediaEvent"
 import { filterInfos } from "../defaults/filters"
 import {
@@ -17,16 +19,14 @@ import {
 	type URLCondition,
 	type URLConditionPart,
 } from "../types"
-import { clamp, isFirefox, round } from "./helper"
-import { compareHotkeys, Hotkey } from "./keys"
+import { sendToFrame } from "./browserUtils"
+import { IS_FIREFOX_BUILD } from "./buildFlags"
+import { clamp, round } from "./helper"
+import { supportsItc } from "./itcUtils"
 import { fetchView, pushView } from "./state"
 
 export function conformSpeed(speed: number, rounding = 2) {
 	return clamp(0.07, 16, round(speed, rounding))
-}
-
-export function formatSpeedOld(speed: number) {
-	return speed.toFixed(2)
 }
 
 export function formatSpeed(speed: number, snip = false) {
@@ -38,7 +38,7 @@ export function formatSpeed(speed: number, snip = false) {
 }
 
 export function formatSpeedForBadge(speed: number) {
-	return formatSpeed(speed).slice(0, isFirefox() ? 3 : 4)
+	return formatSpeed(speed).slice(0, IS_FIREFOX_BUILD ? 3 : 4)
 }
 
 export function formatFilters(filterValues: FilterEntry[]) {
@@ -92,7 +92,12 @@ export function sendMediaEvent(event: MediaEvent, key: string, tabId: number, fr
 		// realizeMediaEvent(key, event)
 	} else {
 	}
-	chrome.tabs.sendMessage(tabId, { type: "APPLY_MEDIA_EVENT", event, key }, frameId == null ? undefined : { frameId })
+	const msg = { type: "APPLY_MEDIA_EVENT", event, key } as Messages
+	if (frameId == null) {
+		chrome.tabs.sendMessage(tabId, msg)
+		return
+	}
+	void sendToFrame(tabId, frameId, msg)
 }
 
 export function sendMessageToConfigSync(msg: any, tabId: number, frameId?: number) {
@@ -138,22 +143,19 @@ export function requestSyncContextMenu(direct?: boolean) {
 	chrome.runtime.sendMessage({ type: "SYNC_CONTEXT_MENUS", direct })
 }
 
+/** The adjust modes a command supports, in the order the editor cycles through them. */
+export function getAdjustModes(command: CommandName): AdjustMode[] {
+	const modes = [AdjustMode.SET, AdjustMode.ADD, AdjustMode.CYCLE]
+	if (supportsItc(command)) modes.push(AdjustMode.ITC)
+	return modes
+}
+
 export function isSeekSmall(kb: Keybind, ref?: ReferenceValues) {
 	if (kb.adjustMode === AdjustMode.ADD) {
 		let val = kb.valueNumber ?? ref?.step
 		if ((kb.duration || Duration.SECS) === Duration.SECS) return Math.abs(val) < 0.5
 		if (kb.duration === Duration.FRAMES) return Math.abs(val) < 14
 	}
-}
-
-export function findMatchingPageKeybinds(kbs: Keybind[], key?: Hotkey): KeybindMatch[] {
-	return kbs
-		.filter((kb) => kb.enabled)
-		.map((kb) => {
-			if (kb.key && compareHotkeys(kb.key, key)) return { kb }
-			if (kb.allowAlt && kb.adjustMode === AdjustMode.CYCLE && compareHotkeys(kb.keyAlt, key)) return { kb, alt: true }
-		})
-		.filter((v) => v)
 }
 
 export function findMatchingBrowserKeybinds(kbs: Keybind[], global?: string): KeybindMatch[] {
@@ -184,11 +186,9 @@ export function triggerToKey(trigger: Trigger): KeybindType {
 
 export async function handleFreshState() {
 	if (!(await fetchView({ freshState: true })).freshState) return
-	const darkTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
 	await pushView({
 		override: {
 			freshState: null,
-			darkTheme,
 		},
 	})
 }

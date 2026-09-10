@@ -18,7 +18,15 @@ declare namespace chrome.tabCapture {
 	export function getMediaStreamId(options: GetMediaStreamOptions): Promise<string>
 }
 
-declare module "*.css?raw" {
+declare module "*.css?inline" {
+	const content: string
+	export default content
+}
+
+declare module "*.css" {}
+
+// Built main.js source, inlined by the Firefox mainLoader build. See vite.config.js.
+declare module "virtual:main-code" {
 	const content: string
 	export default content
 }

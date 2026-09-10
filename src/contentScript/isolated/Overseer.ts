@@ -1,3 +1,5 @@
+import type { ItcPanel } from "@/contentScript/itcPanel"
+import { gvar } from "@/globalVar"
 import { requestTabInfo } from "@/utils/browserUtils"
 import { timeout } from "@/utils/helper"
 import { fetchView } from "@/utils/state"
@@ -9,7 +11,6 @@ import type { Circle } from "./utils/Circle"
 import { DetectOpen } from "./utils/DetectOpen"
 import { EventsListener } from "./utils/EventsListener"
 import { Indicator } from "./utils/Indicator"
-import { Interactive } from "./utils/Interactive"
 import { NativeFs } from "./utils/NativeFs"
 import { SmartFs } from "./utils/SmartFs"
 import { StratumServer } from "./utils/StratumServer"
@@ -28,8 +29,7 @@ export class Overseer {
 	visibleSync: VisibleSync
 	configSync: ConfigSync
 	indicator: Indicator
-	indicatorAlt: Indicator
-	itc?: Interactive
+	itcPanel?: ItcPanel
 	circle?: Circle
 
 	orphaned = false
@@ -98,8 +98,6 @@ export class Overseer {
 
 		this.indicator?.release()
 		delete this.indicator
-		this.indicatorAlt?.release()
-		delete this.indicatorAlt
 		this.smartFs?.release()
 		delete this.smartFs
 		this.nativeFs?.release()
@@ -108,8 +106,8 @@ export class Overseer {
 		delete this.visibleSync
 		this.configSync?.release()
 		delete this.configSync
-		this.itc?.release()
-		delete this.itc
+		this.itcPanel?.release()
+		delete this.itcPanel
 		this.circle?.release()
 		delete this.circle
 		this.speedSync?.release()

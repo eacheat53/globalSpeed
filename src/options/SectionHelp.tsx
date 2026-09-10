@@ -2,28 +2,32 @@ import { MouseEvent, useEffect, useRef, useState } from "react"
 import { MdContentCopy, MdContentPaste } from "react-icons/md"
 import { migrateSchema } from "@/background/utils/migrateSchema"
 import { Tooltip } from "@/comps/Tooltip"
+import { Button } from "@/comps/ui/button"
 import { getDefaultState } from "@/defaults"
+import { gvar } from "@/globalVar"
 import { State } from "../types"
 import { requestCreateTab } from "../utils/browserUtils"
-import { areYouSure, isFirefox, isMobile } from "../utils/helper"
+import { IS_FIREFOX_BUILD } from "../utils/buildFlags"
+import { areYouSure, isMobile } from "../utils/helper"
+import { isPromoLanguage } from "../utils/promoUtils"
 import { dumpConfig, fetchView, pushView, restoreConfig } from "../utils/state"
-import "./SectionHelp.css"
+import { OptionsSection } from "./OptionsSection"
 
 export function SectionHelp(props: {}) {
 	return (
-		<div className="section SectionHelp">
+		<OptionsSection>
 			{/* Header */}
 			<h2 onClick={handleSecretMenu}>{gvar.gsm.options.help.header}</h2>
 
 			{/* Issue prompt */}
-			<div className="card">
+			<div className="mb-7.5 inline-block rounded-lg border border-border bg-card p-2.5 text-lg leading-[2] text-card-foreground opacity-65 hover:opacity-100">
 				{gvar.gsm.options.help.issuePrompt} <a href="https://github.com/polywock/globalSpeed/issues">{gvar.gsm.options.help.issueDirective}</a>
 			</div>
 
-			<div className="controls">
+			<div className="grid grid-cols-[max-content_max-content_1fr] justify-items-end gap-x-2.5">
 				{/* Reset  */}
-				<button
-					className="large"
+				<Button
+					size="xl"
 					onClick={async (e) => {
 						if (!areYouSure()) return
 
@@ -34,26 +38,27 @@ export function SectionHelp(props: {}) {
 					}}
 				>
 					{gvar.gsm.token.reset}
-				</button>
+				</Button>
 
 				{/* Export/Import  */}
 				{!isMobile() && (
 					<>
-						<button
-							className="large"
+						<Button
+							size="xl"
+							className="uppercase"
 							onClick={(e) => {
 								requestCreateTab(chrome.runtime.getURL("./faqs.html"))
 							}}
 						>
 							{"FAQ"}
-						</button>
-						<div className="right">
+						</Button>
+						<div className="grid grid-cols-[repeat(4,max-content)] gap-x-1.25">
 							<ExportImport />
 						</div>
 					</>
 				)}
 			</div>
-		</div>
+		</OptionsSection>
 	)
 }
 
@@ -77,10 +82,30 @@ function handleSecretMenu(e: MouseEvent) {
 					pushView({ override: { ignorePiP: !view.ignorePiP } })
 				}
 			})
+		} else if (command === "promos") {
+			primePromos()
 		} else {
 			alert("Invalid command.")
 		}
 	}
+}
+
+/** Passes every promo gate, drops the cached config, then refetches it. */
+async function primePromos() {
+	if (!isPromoLanguage()) {
+		return
+	}
+
+	await pushView({
+		override: {
+			selfPromoCountR: 999,
+			selfPromoFirstR: Date.now() - 30 * 24 * 36e5,
+			selfPromoHideTsR: 0,
+			selfPromoData: null,
+		},
+	})
+
+	await chrome.runtime.sendMessage({ type: "HANDLE_PROMO" } as Messages)
 }
 
 function ExportImport(props: {}) {
@@ -110,42 +135,43 @@ function ExportImport(props: {}) {
 	return (
 		<>
 			<Tooltip title={gvar.gsm.options.help.exportTooltip}>
-				<button
-					className="large"
+				<Button
+					size="xl"
 					onClick={async () => {
 						downloadState(await dumpConfig())
 					}}
 				>
 					{gvar.gsm.options.help.export}
-				</button>
+				</Button>
 			</Tooltip>
 			<Tooltip title={showWasCopied ? gvar.gsm.options.help.copied : gvar.gsm.options.help.copy}>
-				<button
-					className="large"
+				<Button
+					size="xl"
 					onClick={async (e) => {
 						await navigator.clipboard.writeText(JSON.stringify(await dumpConfig()))
 						setShowWasCopied(true)
 						setTimeout(() => setShowWasCopied(false), 1000)
 					}}
 				>
-					<MdContentCopy style={{ pointerEvents: "none" }} />
-				</button>
+					<MdContentCopy className="pointer-events-none" />
+				</Button>
 			</Tooltip>
 			<Tooltip title={gvar.gsm.options.help.importTooltip}>
-				<button
-					className="large"
+				<Button
+					size="xl"
+					className="ml-3.75"
 					onClick={(e) => {
 						ref.current.input.click()
 					}}
 				>
 					{gvar.gsm.options.help.import}
-				</button>
+				</Button>
 			</Tooltip>
 			<Tooltip title={gvar.gsm.options.help.paste}>
-				<button
-					className="large"
+				<Button
+					size="xl"
 					onClick={async (e) => {
-						if (isFirefox()) {
+						if (IS_FIREFOX_BUILD) {
 							if (!(await chrome.permissions.request({ permissions: ["clipboardRead", "clipboardWrite"] }))) return
 						}
 
@@ -153,7 +179,7 @@ function ExportImport(props: {}) {
 					}}
 				>
 					<MdContentPaste />
-				</button>
+				</Button>
 			</Tooltip>
 		</>
 	)

@@ -1,9 +1,11 @@
 import { getEmptyUrlConditions } from "@/defaults"
-import { AdjustMode, URLCondition, URLConditionPart } from "@/types"
+import { DEFAULT_DOUBLE_TAP_THRESHOLD, DEFAULT_LONG_PRESS_THRESHOLD } from "@/defaults/constants"
+import { gvar } from "@/globalVar"
+import { AdjustMode, Keybind, KeybindMatch, URLCondition, URLConditionPart } from "@/types"
 import { getPracticalRuntimeUrl } from "@/utils/helper"
 import { getLeaf } from "@/utils/nativeUtils"
-import { findMatchingPageKeybinds, getActiveParts, hasActiveParts, testURL, testURLWithPart } from "../../utils/configUtils"
-import { extractHotkey } from "../../utils/keys"
+import { getActiveParts, hasActiveParts, testURL, testURLWithPart } from "../../utils/configUtils"
+import { compareHotkeys, extractHotkey, FullHotkey, Hotkey } from "../../utils/keys"
 import { SubscribeView } from "../../utils/state"
 import { FxSync } from "./FxSync"
 import { Circle } from "./utils/Circle"
@@ -18,17 +20,29 @@ const ghostModeStatic = [
 	".instagram.com",
 	".descript.com",
 	"www.ccmtv.cn",
-	".douyin.com",
-	".tiktok.com",
 	".linkedin.com",
 	"mooc1.chaoxing.com",
 ].some((site) => (location.hostname || "").includes(site))
 
+const supressShortcuts = (() => {
+	try {
+		if (location.origin.endsWith("devvit.net")) {
+			return true
+		} else if (location.origin.endsWith("playables.usercontent.goog")) {
+			return true
+		}
+	} catch {}
+	return false
+})()
+
 export class ConfigSync {
+	ac = new AbortController()
 	released = false
 	blockKeyUp = false
-	justRanTemporarySpeed = false
+	fastForwardHeld: FastForwardHeld | undefined = undefined
 	lastTrigger = 0
+	longHeld: Map<string, LongPressHeld> = new Map()
+	doubleTaps: Map<string, DoubleTapState> = new Map()
 	fxSync: FxSync
 	urlConditionsClient = new SubscribeView(
 		{ keybindsUrlCondition: true },
@@ -51,6 +65,8 @@ export class ConfigSync {
 			circleWidget: true,
 			circleInit: true,
 			holdToSpeed: true,
+			longPressThreshold: true,
+			doubleTapThreshold: true,
 		},
 		gvar.tabInfo.tabId,
 		true,
@@ -72,13 +88,17 @@ export class ConfigSync {
 	)
 	ignoreList = new Set<string>()
 	init = () => {
-		gvar.os.eListen.keyDownCbs.add(this.handleKeyDown)
-		gvar.os.eListen.keyUpCbs.add(this.handleKeyUp)
+		gvar.os.eListen.keyDownCbs.add(this.handleKeyDown, this.ac.signal)
+		gvar.os.eListen.keyUpCbs.add(this.handleKeyUp, this.ac.signal)
+		gvar.os.eListen.visibilityCbs.add(() => document.hidden && this.handleBlur(), this.ac.signal)
+		gvar.os.eListen.blurCbs.add(this.handleBlur, this.ac.signal)
 		this.handleSpeedChange()
 	}
 	release = () => {
 		if (this.released) return
+		this.ac.abort()
 		this.released = true
+		this.handleBlur()
 		this.urlConditionsClient?.release()
 		delete this.urlConditionsClient
 		this.client?.release()
@@ -87,13 +107,29 @@ export class ConfigSync {
 		delete this.speedClient
 		this.fxSync?.release()
 		delete this.fxSync
-		gvar.os.eListen.keyDownCbs.delete(this.handleKeyDown)
-		gvar.os.eListen.keyUpCbs.delete(this.handleKeyUp)
+	}
+	handleBlur = () => {
+		this.longHeld.forEach((state) => window.clearTimeout(state.timerId))
+		this.longHeld.clear()
+		this.doubleTaps.forEach((state) => window.clearTimeout(state.timerId))
+		this.doubleTaps.clear()
+		if (this.fastForwardHeld) {
+			this.fastForwardHeld = undefined
+			chrome.runtime.sendMessage({ type: "RELEASED_TEMPORARY_SPEED" })
+		}
 	}
 	urlConditions: URLCondition
 	urlConditionsMode: "Off" | "On" | "Runtime" = "Off"
 	urlConditionsNonStatic: URLConditionPart[] = []
 	handleChangeUrlConditionsList = () => {
+		if (supressShortcuts) {
+			this.urlConditionsMode = "Off"
+			return
+		}
+		if (location.protocol === "file:") {
+			this.urlConditionsMode = "On"
+			return
+		}
 		this.urlConditions = this.urlConditionsClient.view.keybindsUrlCondition || getEmptyUrlConditions(true)
 		const enabledParts = getActiveParts(this.urlConditions)
 		const runtimeUrl = getPracticalRuntimeUrl()
@@ -209,9 +245,29 @@ export class ConfigSync {
 			e.preventDefault()
 		}
 
-		if (this.justRanTemporarySpeed) {
-			console.log(e.code, e.key, e.shiftKey)
-			this.justRanTemporarySpeed = false
+		const longHeld = this.longHeld.get(e.code)
+		if (longHeld) {
+			clearTimeout(longHeld.timerId)
+			// Trigger short matches if long press threshold never reached
+			if (!longHeld.reached && longHeld.shortMatches.length) {
+				this.triggerMatches(longHeld.shortMatches, e)
+			}
+			this.longHeld.delete(e.code)
+		}
+
+		// Clear any taps
+		const tap = this.doubleTaps.get(e.code)
+		if (tap) {
+			tap.released = true
+
+			if (tap.doubleTapped || tap.singleTapped) {
+				this.doubleTaps.delete(e.code)
+			}
+		}
+
+		// Release fast forward on key up
+		if (this.fastForwardHeld && (this.fastForwardHeld.code === e.code || !this.fastForwardHeld.code)) {
+			this.fastForwardHeld = undefined
 			chrome.runtime.sendMessage({ type: "RELEASED_TEMPORARY_SPEED" })
 		}
 	}
@@ -226,7 +282,6 @@ export class ConfigSync {
 		let keybinds = this.client.view.pageKeybinds
 		if (!enabled) {
 			keybinds = (keybinds || []).filter((kb) => kb.command === "state" && kb.enabled && (this.client.view.latestViaShortcut || kb.alwaysOn))
-
 			if (!keybinds.length) return
 		}
 
@@ -247,9 +302,11 @@ export class ConfigSync {
 
 		if (this.checkUrlRuntime() === "Off") return
 
+		// Get triggered keybinds
 		const eventHotkey = extractHotkey(e, true, true)
 		let matches = findMatchingPageKeybinds(keybinds, eventHotkey)
 
+		// Filter by any URL conditions
 		matches = matches.filter((match) => {
 			if (match.kb.condition && hasActiveParts(match.kb.condition)) {
 				return testURL(getPracticalRuntimeUrl(), match.kb.condition, true)
@@ -257,29 +314,117 @@ export class ConfigSync {
 			return true
 		})
 
-		if (matches.some((v) => v.kb.greedy)) {
+		// If greedy, stop propagation.
+		const greedy = matches.some((v) => v.kb.greedy)
+		if (greedy) {
 			this.blockKeyUp = true
 			e.preventDefault()
 			e.stopImmediatePropagation()
 		}
 
-		matches = matches.filter(
-			(match) => !(match.kb.adjustMode === AdjustMode.ITC || match.kb.adjustMode === AdjustMode.ITC_REL) || !this.ignoreList.has(match.kb.id),
-		)
+		// If any long matches, branch off
+		const shortMatches = matches.filter((m) => !m.kb.longPress)
+		const longMatches = matches.filter((m) => m.kb.longPress)
 
-		if (matches.length) {
-			const now = Date.now()
-			if (now - this.lastTrigger > 50) {
-				this.lastTrigger = now
-				matches
-					.filter((match) => match.kb.adjustMode === AdjustMode.ITC || match.kb.adjustMode === AdjustMode.ITC_REL)
-					.forEach((v) => this.ignoreList.add(v.kb.id))
-				chrome.runtime.sendMessage({ type: "TRIGGER_KEYBINDS", ids: matches.map((match) => ({ id: match.kb.id, alt: match.alt })) })
+		if (longMatches.length) {
+			this.handleKeyDownLongPress(e, eventHotkey, shortMatches, longMatches)
+			return
+		}
 
-				if (matches.some((match) => match.kb.command === "temporarySpeed")) {
-					this.justRanTemporarySpeed = true
-				}
+		// If any double tap matches, branch off
+		const singleMatches = matches.filter((m) => !m.kb.doubleTap)
+		const doubleMatches = matches.filter((m) => m.kb.doubleTap)
+		if (doubleMatches.length) {
+			this.handleKeyDownDoubleTaps(e, eventHotkey, singleMatches, doubleMatches)
+			return
+		}
+
+		// Default behavior
+		this.triggerMatches(matches, e)
+	}
+	handleKeyDownLongPress(e: KeyboardEvent, eventHotkey: FullHotkey, shortMatches: KeybindMatch[], longMatches: KeybindMatch[]) {
+		const keyId = eventHotkey.code
+		if (!keyId) return
+
+		let held = this.longHeld.get(keyId)
+		if (!held) {
+			// If first time pressing it, note
+			held = {
+				shortMatches,
+				longMatches,
 			}
+			held.timerId = window.setTimeout(() => {
+				// Trigger long matches after timeout
+				this.triggerMatches(longMatches, e)
+				held.reached = true
+			}, this.client?.view?.longPressThreshold ?? DEFAULT_LONG_PRESS_THRESHOLD)
+
+			this.longHeld.set(keyId, held)
+		} else {
+			// Update references
+			held.longMatches = longMatches
+			held.shortMatches = shortMatches
+
+			// If already held down for enough time, trigger long matches repeatedly
+			if (held.reached) {
+				this.triggerMatches(longMatches, e)
+			}
+		}
+	}
+	handleKeyDownDoubleTaps(e: KeyboardEvent, eventHotkey: FullHotkey, singleMatches: KeybindMatch[], doubleMatches: KeybindMatch[]) {
+		const keyId = eventHotkey.code
+		if (!keyId) return
+
+		let tap = this.doubleTaps.get(keyId)
+
+		if (!tap) {
+			// Store references
+			tap = { singleMatches }
+			tap.timerId = window.setTimeout(() => {
+				this.triggerMatches(tap.singleMatches || [], e)
+				tap.singleTapped = true
+				if (tap.released) {
+					this.doubleTaps.delete(keyId)
+				}
+			}, this.client?.view?.doubleTapThreshold ?? DEFAULT_DOUBLE_TAP_THRESHOLD)
+			this.doubleTaps.set(keyId, tap)
+		} else {
+			// Update so it's not stale for timeout handler
+			tap.singleMatches = singleMatches
+			tap.released = false
+
+			if (tap.singleTapped) {
+				this.triggerMatches(singleMatches || [], e)
+			} else if (tap.doubleTapped) {
+				this.triggerMatches(doubleMatches || [], e)
+			} else if (!e.repeat) {
+				this.triggerMatches(doubleMatches || [], e)
+				tap.doubleTapped = true
+				clearTimeout(tap.timerId)
+			}
+		}
+	}
+
+	triggerMatches = (matches: KeybindMatch[], e?: KeyboardEvent) => {
+		// Avoid repeat keybinds in ignoredList, and noRepeat keybinds on key auto-repeat
+		const isRepeat = !!e?.repeat
+		matches = matches.filter((match) => !this.ignoreList.has(match.kb.id) && !(isRepeat && match.kb.noRepeat))
+		if (!matches.length) return
+
+		// A minimum interval between shortcuts
+		const now = Date.now()
+		if (now - this.lastTrigger <= 50) return
+		this.lastTrigger = now
+
+		// Add certain keybinds to ignore list to avoid repeat triggering
+		matches.filter((match) => match.kb.adjustMode === AdjustMode.ITC).forEach((v) => this.ignoreList.add(v.kb.id))
+
+		// Trigger the keybinds
+		chrome.runtime.sendMessage({ type: "TRIGGER_KEYBINDS", ids: matches.map((match) => ({ id: match.kb.id, alt: match.alt })) })
+
+		// Also track
+		if (matches.some((match) => match.kb.command === "temporarySpeed")) {
+			this.fastForwardHeld = { code: e?.code }
 		}
 	}
 }
@@ -300,4 +445,33 @@ function safeGetOrigin(url: string) {
 	try {
 		return new URL(url).origin
 	} catch (err) {}
+}
+
+function findMatchingPageKeybinds(kbs: Keybind[], key?: Hotkey): KeybindMatch[] {
+	return kbs
+		.filter((kb) => kb.enabled)
+		.map((kb) => {
+			if (kb.key && compareHotkeys(kb.key, key)) return { kb }
+			if (kb.allowAlt && kb.adjustMode === AdjustMode.CYCLE && compareHotkeys(kb.keyAlt, key)) return { kb, alt: true }
+		})
+		.filter((v) => v)
+}
+
+type FastForwardHeld = {
+	code: string
+}
+
+type LongPressHeld = {
+	shortMatches: KeybindMatch[]
+	longMatches: KeybindMatch[]
+	timerId?: ReturnType<typeof setTimeout>
+	reached?: boolean
+}
+
+type DoubleTapState = {
+	singleMatches: KeybindMatch[]
+	timerId?: ReturnType<typeof setTimeout>
+	doubleTapped?: boolean
+	singleTapped?: boolean
+	released?: boolean
 }

@@ -1,13 +1,15 @@
 import { GoX } from "react-icons/go"
+import { Select } from "@/comps/Select"
 import { Tooltip } from "@/comps/Tooltip"
+import { Button } from "@/comps/ui/button"
+import { gvar } from "@/globalVar"
 import { extractURLPartValueKey, getActiveParts, getSelectedParts } from "@/utils/configUtils"
 import { produce } from "@/utils/helper"
-import { ModalBase } from "../comps/ModalBase"
+import { ModalBase, ModalContent } from "../comps/ModalBase"
 import { ThrottledTextInput } from "../comps/ThrottledTextInput"
 import { getDefaultURLConditionPart } from "../defaults"
 import { URLCondition, URLConditionPart } from "../types"
 import { findRemoveFromArray } from "../utils/helper"
-import "./URLModal.css"
 
 type Props = {
 	onClose: () => void
@@ -46,42 +48,43 @@ export function URLModal(props: Props) {
 
 	return (
 		<ModalBase keepOnWheel={true} onClose={props.onClose}>
-			<div className="URLModal ModalMain">
+			<ModalContent className="standard-scroll">
 				{/* Header */}
-				<div className="header">
+				<div className="mb-2.5 grid grid-cols-[1fr_max-content]">
 					{/* Label */}
-					<div>{gvar.gsm.options.rules.conditions}</div>
+					<div className="text-2xl">{gvar.gsm.options.rules.conditions}</div>
 
 					{/* Match mode */}
-					<select
+					<Select
 						value={value.block ? "BLOCK" : "ALLOW"}
-						onChange={(e) => {
+						onChanged={(newValue) => {
 							props.onChange(
 								produce(value, (d) => {
-									d.block = e.target.value === "BLOCK"
+									d.block = newValue === "BLOCK"
 								}),
 							)
 						}}
-					>
-						<option value="ALLOW">{gvar.gsm.options.rules.allowlist}</option>
-						<option value="BLOCK">{gvar.gsm.options.rules.blocklist}</option>
-					</select>
+						options={[
+							{ key: "ALLOW", value: gvar.gsm.options.rules.allowlist },
+							{ key: "BLOCK", value: gvar.gsm.options.rules.blocklist },
+						]}
+					/>
 				</div>
 
 				{/* Subheader */}
-				{subheader && <div className="subHeader">{`${subheader}${isNeutral ? "" : ":"}`}</div>}
+				{subheader && <div className="-mt-2.5 mb-3.75 -translate-x-0.5 text-lg italic opacity-50">{`${subheader}${isNeutral ? "" : ":"}`}</div>}
 
 				{/* Parts  */}
-				<div className="parts">
+				<div className="mb-5">
 					{parts.map((part) => (
 						<ULRConditionPart key={part.id} onChange={onChange} onRemove={onRemove} part={part} />
 					))}
 				</div>
 
 				{/* Controls */}
-				<div className="controls">
+				<div className="grid grid-cols-[max-content_max-content] gap-x-2.5">
 					{/* Create */}
-					<button
+					<Button
 						onClick={(e) => {
 							props.onChange(
 								produce(value, (d) => {
@@ -91,12 +94,12 @@ export function URLModal(props: Props) {
 						}}
 					>
 						{gvar.gsm.token.create}
-					</button>
+					</Button>
 
 					{/* Reset */}
-					{parts.length ? <button onClick={props.onReset}>{gvar.gsm.token.reset}</button> : <div></div>}
+					{parts.length ? <Button onClick={props.onReset}>{gvar.gsm.token.reset}</Button> : <div></div>}
 				</div>
-			</div>
+			</ModalContent>
 		</ModalBase>
 	)
 }
@@ -106,7 +109,7 @@ function ULRConditionPart(props: { part: URLConditionPart; onChange: (part: URLC
 	const valueKey = extractURLPartValueKey(part)
 
 	return (
-		<div key={part.id}>
+		<div className="mb-3.75 grid grid-cols-[max-content_max-content_1fr_max-content] items-center gap-x-2.5" key={part.id}>
 			{/* Status */}
 			<Tooltip title={part.disabled ? gvar.gsm.token.on : gvar.gsm.token.off}>
 				<input
@@ -123,20 +126,21 @@ function ULRConditionPart(props: { part: URLConditionPart; onChange: (part: URLC
 			</Tooltip>
 
 			{/* Match type */}
-			<select
+			<Select
 				value={part.type}
-				onChange={(e) => {
+				onChanged={(newValue) => {
 					onChange(
 						produce(part, (d) => {
-							d.type = e.target.value as any
+							d.type = newValue as any
 						}),
 					)
 				}}
-			>
-				<option value={"STARTS_WITH"}>{gvar.gsm.options.rules.startsWith}</option>
-				<option value={"CONTAINS"}>{gvar.gsm.options.rules.contains}</option>
-				<option value={"REGEX"}>{gvar.gsm.options.rules.regex}</option>
-			</select>
+				options={[
+					{ key: "STARTS_WITH", value: gvar.gsm.options.rules.startsWith },
+					{ key: "CONTAINS", value: gvar.gsm.options.rules.contains },
+					{ key: "REGEX", value: gvar.gsm.options.rules.regex },
+				]}
+			/>
 
 			{/* Terms */}
 			<ThrottledTextInput
@@ -152,14 +156,15 @@ function ULRConditionPart(props: { part: URLConditionPart; onChange: (part: URLC
 
 			{/* Delete */}
 			<Tooltip title={gvar.gsm.token.delete}>
-				<button
-					className="close icon"
+				<Button
+					variant="icon"
+					size="icon-auto"
 					onClick={() => {
 						onRemove(part)
 					}}
 				>
 					<GoX size="1.6rem" />
-				</button>
+				</Button>
 			</Tooltip>
 		</div>
 	)

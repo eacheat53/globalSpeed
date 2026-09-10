@@ -1,4 +1,3 @@
-import { getDefaultFx } from "@/defaults"
 import { produce } from "@/utils/helper"
 import { useStateView } from "../hooks/useStateView"
 import { FxControl } from "./FxControl"
@@ -9,12 +8,12 @@ export function FxPanel(props: FxPanelProps) {
 	const [enabledView] = useStateView({ enabled: true })
 	const [view, setView] = useStateView({ backdropFx: true, elementFx: true })
 
-	if (!view || !enabledView) return <div className="panel unloaded"></div>
+	if (!view || !enabledView) return <div className="popup-panel" />
 
 	return (
 		<FxControl
 			live={true}
-			className="panel"
+			className="popup-panel"
 			_elementFx={view.elementFx}
 			_backdropFx={view.backdropFx}
 			enabled={enabledView.enabled}

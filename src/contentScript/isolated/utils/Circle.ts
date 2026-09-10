@@ -1,11 +1,12 @@
 import debounce from "lodash.debounce"
+import { gvar } from "@/globalVar"
 import { CircleInit } from "@/types"
 import { conformSpeed, formatSpeed } from "@/utils/configUtils"
 import { between, clamp, extractClient, formatDuration, inverseLerp, isFirefoxMobile, isMac, isMobile, lerp, roundTo } from "@/utils/helper"
 import { insertStyle } from "@/utils/nativeUtils"
 import { fetchView, pushView } from "@/utils/state"
 import { seekTo, setPause } from "./applyMediaEvent"
-import styles from "./Circle.css?raw"
+import styles from "./Circle.css?inline"
 import { Indicator } from "./Indicator"
 import { Popover } from "./Popover"
 
@@ -64,9 +65,9 @@ export class Circle extends Popover {
 		let spread = (this.size / 18) * shadowScalar
 		let blur = spread * 2
 
-		if (!init.hideIndicator) {
+		if (!this.init.hideIndicator) {
 			this.indicator = new Indicator(true)
-			this.indicator.setInit(init.indicatorInit)
+			this.indicator.setInit(this.init.indicatorInit)
 		}
 
 		this.circle.className = "circle"
@@ -336,10 +337,8 @@ export class Circle extends Popover {
 	toggleSpeed = async () => {
 		let speed = this.init.mainActionSpeed || 3
 		const view = await fetchView({ speed: true, lastSpeed: true }, gvar.tabInfo.tabId)
-		let lastSpeed = view.lastSpeed
-
 		if (view.speed?.toFixed(2) === speed.toFixed(2)) {
-			;[speed, lastSpeed] = [view.lastSpeed, view.speed]
+			speed = view.lastSpeed
 		}
 
 		pushView({ override: { speed, lastSpeed: view.speed }, tabId: gvar.tabInfo.tabId })

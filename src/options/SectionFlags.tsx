@@ -1,26 +1,38 @@
-import { useEffect, useState } from "react"
+import { ComponentPropsWithoutRef, useEffect, useMemo, useState } from "react"
 import { GoX } from "react-icons/go"
-import { TfiMoreAlt } from "react-icons/tfi"
 import { GearIcon } from "@/comps/GearIcon"
 import { Minmax } from "@/comps/Minmax"
 import { NumericInput } from "@/comps/NumericInput"
 import { RegularTooltip } from "@/comps/RegularTooltip"
+import { Reset } from "@/comps/Reset"
+import { Select } from "@/comps/Select"
 import { SliderMicro } from "@/comps/SliderMicro"
 import { Toggle } from "@/comps/Toggle"
 import { Tooltip } from "@/comps/Tooltip"
+import { Button } from "@/comps/ui/button"
 import { getDefaultURLCondition } from "@/defaults"
-import { getDefaultSpeedSlider } from "@/defaults/constants"
+import { DEFAULT_DOUBLE_TAP_THRESHOLD, DEFAULT_LONG_PRESS_THRESHOLD, getDefaultSpeedSlider } from "@/defaults/constants"
+import { gvar } from "@/globalVar"
+import { systemIsDark } from "@/hooks/useThemeSync"
 import { Context, CONTEXT_KEYS, InitialContext, StateView } from "@/types"
-import { clamp, isMobile, produce } from "@/utils/helper"
+import { clamp, cn, isMobile, produce } from "@/utils/helper"
+import { isPromoShowing, PROMO_VIEW_KEYS } from "@/utils/promoUtils"
 import { fetchView } from "@/utils/state"
 import { MAX_SPEED_CHROMIUM, MIN_SPEED_CHROMIUM } from "../defaults/constants"
 import { SetView, useStateView } from "../hooks/useStateView"
-import { LOCALE_MAP } from "../utils/gsm"
+import { getValidLocale, LOCALE_MAP } from "../utils/gsm"
 import { IndicatorModal } from "./IndicatorModal"
+import { LocalFilesField } from "./LocalFilesField"
+import { OptionField } from "./OptionField"
+import { OptionFieldLabel } from "./OptionFieldLabel"
+import { OptionsSection } from "./OptionsSection"
 import { SpeedPresetModal } from "./SpeedPresetModal"
 import { URLModal } from "./URLModal"
 import { WidgetModal } from "./WidgetModal"
-import "./SectionFlags.css"
+
+function FloatingFieldValue({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+	return <div {...props} className={cn("relative leading-0", className)} />
+}
 
 export function SectionFlags(props: {}) {
 	const [showIndicatorModal, setShowIndicatorModal] = useState(false)
@@ -51,14 +63,20 @@ export function SectionFlags(props: {}) {
 		virtualInput: true,
 		circleWidget: true,
 		holdToSpeed: true,
+		longPressThreshold: true,
+		doubleTapThreshold: true,
+		pageKeybinds: true,
 	})
 	const [viewAlt] = useStateView({ indicatorInit: true, hideIndicator: true })
+	const hasLongPressKey = useMemo(() => (view?.pageKeybinds || []).some((kb) => kb.longPress), [view?.pageKeybinds])
+	const hasDoubleTap = useMemo(() => (view?.pageKeybinds || []).some((kb) => kb.doubleTap), [view?.pageKeybinds])
+
 	if (!view || !viewAlt) return <div></div>
 
 	const defaultSlider = getDefaultSpeedSlider()
 
 	return (
-		<div className="section SectionFlags">
+		<OptionsSection>
 			{showIndicatorModal && (
 				<IndicatorModal
 					indicator={viewAlt.indicatorInit}
@@ -82,208 +100,251 @@ export function SectionFlags(props: {}) {
 			{showPresetModal && <SpeedPresetModal onClose={() => setShowPresetModal(null)} />}
 			{showWidgetModal && <WidgetModal onClose={() => setShowWidgetModal(null)} />}
 			<h2>{gvar.gsm.options.flags.header}</h2>
-			<div className="fields">
+			<div className="mt-5">
 				{/* Language */}
-				<div className="field">
-					<div className="labelWithTooltip">
-						<span>{gvar.gsm.options.flags.language}</span>
 
-						{gvar.gsm.options.flags._languageTooltip && <RegularTooltip title={gvar.gsm.options.flags._languageTooltip} align="right" />}
-					</div>
-					<select
-						value={view.language || "detect"}
-						onChange={(e) => {
-							setView({ language: e.target.value })
-						}}
-					>
-						{Object.keys(LOCALE_MAP).map((key) => (
-							<option key={key} value={key} title={LOCALE_MAP[key].title}>
-								{LOCALE_MAP[key].display}
-							</option>
-						))}
-					</select>
-				</div>
+				<div className="mb-7.5">
+					<OptionField>
+						<OptionFieldLabel>
+							<span>{gvar.gsm.options.flags.language}</span>
 
-				{/* Dark theme */}
-				<div className="field">
-					<span>{gvar.gsm.options.flags.darkTheme}</span>
-					<Toggle
-						value={!!view.darkTheme}
-						onChange={(e) => {
-							setView({ darkTheme: !view.darkTheme })
-						}}
-					/>
-				</div>
-
-				{/* Permission */}
-				{!has && (
-					<div className="field">
-						<div className="labelWithTooltip">
-							<span>{gvar.gsm.options.flags.grantPermission}</span>
-							<RegularTooltip title={gvar.gsm.options.flags.grantPermissionTooltip} align="right" />
+							{gvar.gsm.options.flags._languageTooltip && <RegularTooltip title={gvar.gsm.options.flags._languageTooltip} align="right" />}
+						</OptionFieldLabel>
+						<div className="grid grid-cols-[max-content_max-content] items-center gap-x-1.25">
+							<Select
+								className="text-center"
+								aria-label={gvar.gsm.options.flags.language}
+								value={view.language || getValidLocale()}
+								onChanged={(newValue) => {
+									setView({ language: newValue === getValidLocale() ? null : newValue })
+								}}
+								options={Object.keys(LOCALE_MAP).map((key) => ({
+									key,
+									value: LOCALE_MAP[key].display,
+									title: LOCALE_MAP[key].title,
+								}))}
+							/>
+							{view.language != null && (
+								<Tooltip title={gvar.gsm.options.flags.languageSystem}>
+									<Button
+										variant="icon"
+										size="icon-auto"
+										aria-label={gvar.gsm.options.flags.languageSystem}
+										onClick={() => {
+											setView({ language: null })
+										}}
+									>
+										<GoX size="1.6rem" />
+									</Button>
+								</Tooltip>
+							)}
 						</div>
+					</OptionField>
+
+					{/* Dark theme */}
+					<OptionField>
+						<span>{gvar.gsm.options.flags.darkTheme}</span>
+						<div className="grid grid-cols-[max-content_max-content] items-center gap-x-1.25">
+							<Toggle
+								aria-label={gvar.gsm.options.flags.darkTheme}
+								value={view.darkTheme ?? systemIsDark}
+								onChange={(v) => {
+									setView({ darkTheme: v === systemIsDark ? null : v })
+								}}
+							/>
+							{view.darkTheme != null && (
+								<Tooltip title={gvar.gsm.options.flags.darkThemeSystem}>
+									<Button
+										variant="icon"
+										size="icon-auto"
+										aria-label={gvar.gsm.options.flags.darkThemeSystem}
+										onClick={() => {
+											setView({ darkTheme: null })
+										}}
+									>
+										<GoX size="1.6rem" />
+									</Button>
+								</Tooltip>
+							)}
+						</div>
+					</OptionField>
+
+					{/* Local file and incognito access */}
+					<LocalFilesField />
+
+					{/* Permission */}
+					{!has && (
+						<OptionField>
+							<OptionFieldLabel>
+								<span>{gvar.gsm.options.flags.grantPermission}</span>
+								<RegularTooltip title={gvar.gsm.options.flags.grantPermissionTooltip} align="right" />
+							</OptionFieldLabel>
+							<Toggle
+								aria-label={gvar.gsm.options.flags.grantPermission}
+								value={has}
+								onChange={(e) => {
+									chrome.permissions[has ? "remove" : "request"]({ origins: ["https://*/*", "http://*/*"] }).then((v) => {
+										setHas(has ? !v : v)
+									})
+								}}
+							/>
+						</OptionField>
+					)}
+				</div>
+
+				{/* Show badge */}
+				{!isMobile() && (
+					<OptionField>
+						<OptionFieldLabel>
+							<span>{gvar.gsm.options.flags.showBadge}</span>
+							<RegularTooltip title={gvar.gsm.options.flags.showBadgeTooltip} align="right" />
+						</OptionFieldLabel>
 						<Toggle
-							value={has}
+							aria-label={gvar.gsm.options.flags.showBadge}
+							value={!view.hideBadge}
 							onChange={(e) => {
-								chrome.permissions[has ? "remove" : "request"]({ origins: ["https://*/*", "http://*/*"] }).then((v) => {
-									setHas(has ? !v : v)
-								})
+								setView({ hideBadge: !view.hideBadge })
 							}}
 						/>
-					</div>
+					</OptionField>
 				)}
 
+				{/* Show indicator */}
 				{!isMobile() && (
-					<>
-						{/* Show badge */}
-						<div className="field marginTop">
-							<div className="labelWithTooltip">
-								<span>{gvar.gsm.options.flags.showBadge}</span>
-								<RegularTooltip title={gvar.gsm.options.flags.showBadgeTooltip} align="right" />
-							</div>
+					<OptionField>
+						<OptionFieldLabel>
+							<span>{gvar.gsm.options.flags.showIndicator}</span>
+							<RegularTooltip title={gvar.gsm.options.flags.showIndicatorTooltip} align="right" />
+						</OptionFieldLabel>
+						<FloatingFieldValue>
 							<Toggle
-								value={!view.hideBadge}
-								onChange={(e) => {
-									setView({ hideBadge: !view.hideBadge })
-								}}
-							/>
-						</div>
-
-						{/* Show indicator */}
-						<div className="field indentFloat">
-							<div className="labelWithTooltip">
-								<span>{gvar.gsm.options.flags.showIndicator}</span>
-								<RegularTooltip title={gvar.gsm.options.flags.showIndicatorTooltip} align="right" />
-							</div>
-							<div className="fieldValue">
-								<Toggle
-									value={!viewAlt.hideIndicator}
-									onChange={async (e) => {
-										const view = await fetchView({ pageKeybinds: true, browserKeybinds: true, menuKeybinds: true })
-										const updated = produce(view, (d) => {
-											d.pageKeybinds?.forEach((kb) => {
-												delete kb.invertIndicator
-											})
-											d.browserKeybinds?.forEach((kb) => {
-												delete kb.invertIndicator
-											})
-											d.menuKeybinds?.forEach((kb) => {
-												delete kb.invertIndicator
-											})
-											d.hideIndicator = !viewAlt.hideIndicator
+								aria-label={gvar.gsm.options.flags.showIndicator}
+								value={!viewAlt.hideIndicator}
+								onChange={async (e) => {
+									const view = await fetchView({ pageKeybinds: true, browserKeybinds: true, menuKeybinds: true })
+									const updated = produce(view, (d) => {
+										d.pageKeybinds?.forEach((kb) => {
+											delete kb.invertIndicator
 										})
+										d.browserKeybinds?.forEach((kb) => {
+											delete kb.invertIndicator
+										})
+										d.menuKeybinds?.forEach((kb) => {
+											delete kb.invertIndicator
+										})
+										d.hideIndicator = !viewAlt.hideIndicator
+									})
 
-										setView(updated)
-									}}
-								/>
-								<div className="float">
-									{viewAlt.hideIndicator ? null : (
-										<>
-											<GearIcon onClick={() => setShowIndicatorModal(true)} />
-										</>
-									)}
-								</div>
-							</div>
-						</div>
-
-						{/* Show media view */}
-						<div className="field">
-							<span>{gvar.gsm.options.flags.showMediaView}</span>
-							<Toggle
-								value={!view.hideMediaView}
-								onChange={(e) => {
-									setView({ hideMediaView: !view.hideMediaView })
+									setView(updated)
 								}}
 							/>
-						</div>
-					</>
+							<div className="field-gear">
+								{viewAlt.hideIndicator ? null : <GearIcon className="text-foreground" onClick={() => setShowIndicatorModal(true)} />}
+							</div>
+						</FloatingFieldValue>
+					</OptionField>
+				)}
+
+				{/* Show media view */}
+				{!isMobile() && (
+					<OptionField>
+						<span>{gvar.gsm.options.flags.showMediaView}</span>
+						<Toggle
+							aria-label={gvar.gsm.options.flags.showMediaView}
+							value={!view.hideMediaView}
+							onChange={(e) => {
+								setView({ hideMediaView: !view.hideMediaView })
+							}}
+						/>
+					</OptionField>
 				)}
 
 				{/* Circle widget */}
 				<CircleWidget setView={setView} active={view.circleWidget} setShowWidgetModal={setShowWidgetModal} />
 
 				{/* Pin by default */}
-				<div className="field marginTop">
-					<div className="labelWithTooltip">
+				<OptionField className="mt-7.5">
+					<OptionFieldLabel>
 						<span>{gvar.gsm.options.flags.pinByDefault}</span>
-						<RegularTooltip title={gvar.gsm.options.flags.pinByDefaultTooltip} align="right" />
-					</div>
+						<RegularTooltip title={gvar.gsm.header.pinTooltip} align="right" />
+					</OptionFieldLabel>
 					<Toggle
+						aria-label={gvar.gsm.options.flags.pinByDefault}
 						value={!!view.pinByDefault}
 						onChange={(e) => {
 							setView({ pinByDefault: !view.pinByDefault })
 						}}
 					/>
-				</div>
+				</OptionField>
 
-				{/* Initial state */}
+				{/* Initial context */}
 				{!!view.pinByDefault && (
-					<div className="field indent">
-						<div className="labelWithTooltip">
-							<span>{gvar.gsm.options.flags.initialState}</span>
-							{<RegularTooltip title={gvar.gsm.options.flags.initialStateTooltip} align="right" />}
-						</div>
-						<select
-							value={view.initialContext ?? InitialContext.PREVIOUS}
-							onChange={async (e) => {
-								const partial = { initialContext: parseInt(e.target.value) } as Partial<StateView>
+					<OptionField>
+						<OptionFieldLabel className="ml-5">
+							<span>{gvar.gsm.options.flags.initialContext}</span>
+							{<RegularTooltip title={gvar.gsm.options.flags.initialContextTooltip} align="right" />}
+						</OptionFieldLabel>
+						<Select
+							aria-label={gvar.gsm.options.flags.initialContext}
+							value={`${view.initialContext ?? InitialContext.PREVIOUS}`}
+							onChanged={async (newValue) => {
+								const partial = { initialContext: parseInt(newValue) } as Partial<StateView>
 								if (partial.initialContext === InitialContext.CUSTOM) {
 									partial.customContext = (await fetchView(CONTEXT_KEYS, gvar.tabInfo.tabId)) as Context
 								}
 								setView(partial)
 								partial.customContext && alert(gvar.gsm.options.flags.customContextTooltip)
 							}}
-						>
-							<option value={InitialContext.PREVIOUS}>{gvar.gsm.options.flags.previousContext}</option>
-							<option value={InitialContext.GLOBAL}>{gvar.gsm.options.flags.globalContext}</option>
-							<option value={InitialContext.NEW}>{gvar.gsm.options.flags.newContext}</option>
-							<option value={InitialContext.CUSTOM}>{gvar.gsm.options.flags.customContext}</option>
-						</select>
-					</div>
+							options={[
+								{ key: `${InitialContext.PREVIOUS}`, value: gvar.gsm.options.flags.previousContext },
+								{ key: `${InitialContext.GLOBAL}`, value: gvar.gsm.options.flags.globalContext },
+								{ key: `${InitialContext.NEW}`, value: gvar.gsm.options.flags.newContext },
+								{ key: `${InitialContext.CUSTOM}`, value: gvar.gsm.options.flags.customContext },
+							]}
+						/>
+					</OptionField>
 				)}
 
 				{/* Ghost mode */}
-				<div className="field indentFloat">
-					<div className="labelWithTooltip">
+				<OptionField>
+					<OptionFieldLabel>
 						<span>{gvar.gsm.options.flags.ghostMode}</span>
 						<RegularTooltip title={gvar.gsm.options.flags.ghostModeTooltip} align="right" />
-					</div>
-					<div className="fieldValue">
+					</OptionFieldLabel>
+					<FloatingFieldValue>
 						<Toggle
+							aria-label={gvar.gsm.options.flags.ghostMode}
 							value={!!view.ghostMode}
 							onChange={(e) => {
 								setView({ ghostMode: !view.ghostMode })
 							}}
 						/>
-						<div className="float">
-							{!view.ghostMode ? null : (
-								<>
-									<GearIcon onClick={(e) => setShowGhostModal(true)} />
-								</>
-							)}
+						<div className="field-gear">
+							{!view.ghostMode ? null : <GearIcon className="text-foreground" onClick={(e) => setShowGhostModal(true)} />}
 						</div>
-					</div>
-				</div>
+					</FloatingFieldValue>
+				</OptionField>
 
 				{/* Speed changes pitch */}
-				<div className="field marginTop">
-					<div className="labelWithTooltip">
+				<OptionField className="mt-7.5">
+					<OptionFieldLabel>
 						<span>{gvar.gsm.command.speedChangesPitch}</span>
 						<RegularTooltip title={gvar.gsm.command.speedChangesPitchTooltip} align="right" />
-					</div>
+					</OptionFieldLabel>
 					<Toggle
+						aria-label={gvar.gsm.command.speedChangesPitch}
 						value={!!view.freePitch}
 						onChange={(e) => {
 							setView({ freePitch: !view.freePitch })
 						}}
 					/>
-				</div>
+				</OptionField>
 
 				{/* Speed slider  */}
-				<div className="field speedSlider">
+				<OptionField className="mb-2.5">
 					<span>{gvar.gsm.options.flags.speedSlider}</span>
 					{view.speedSlider ? (
-						<div className="control">
+						<div className="grid grid-cols-[8rem_max-content] gap-x-1.25">
 							<Minmax
 								realMin={MIN_SPEED_CHROMIUM}
 								realMax={MAX_SPEED_CHROMIUM}
@@ -298,57 +359,114 @@ export function SectionFlags(props: {}) {
 								defaultMax={defaultSlider.max}
 							/>
 							<Tooltip title={gvar.gsm.token.delete}>
-								<button
-									className="icon"
+								<Button
+									variant="icon"
+									size="icon-auto"
+									aria-label={gvar.gsm.token.delete}
 									onClick={() => {
 										setView({ speedSlider: null })
 									}}
 								>
 									<GoX size="1.6rem" />
-								</button>
+								</Button>
 							</Tooltip>
 						</div>
 					) : (
-						<Toggle value={!!view.speedSlider} onChange={(v) => setView({ speedSlider: view.speedSlider ? null : getDefaultSpeedSlider() })} />
+						<Toggle
+							aria-label={gvar.gsm.options.flags.speedSlider}
+							value={!!view.speedSlider}
+							onChange={(v) => setView({ speedSlider: view.speedSlider ? null : getDefaultSpeedSlider() })}
+						/>
 					)}
-				</div>
+				</OptionField>
 
 				{/* Hold to speed  */}
-				<div className="field holdToSpeed">
-					<div className="labelWithTooltip">
+				<OptionField className="mb-7.5">
+					<OptionFieldLabel>
 						<span>{gvar.gsm.options.flags.holdToSpeedUp}</span>
 						<RegularTooltip title={gvar.gsm.options.flags.holdToSpeedUpTooltip} align="right" />
-					</div>
+					</OptionFieldLabel>
 
 					{view.holdToSpeed ? (
-						<div className="control">
+						<div className="grid grid-cols-[4rem_max-content] gap-x-1.25">
 							<NumericInput noNull={true} min={0.1} max={20} value={view.holdToSpeed} onChange={(v) => setView({ holdToSpeed: v })} />
-							<button
-								className="icon"
+							<Button
+								variant="icon"
+								size="icon-auto"
+								aria-label={gvar.gsm.token.delete}
 								onClick={() => {
 									setView({ holdToSpeed: null })
 								}}
 							>
 								<GoX size="1.6rem" />
-							</button>
+							</Button>
 						</div>
 					) : (
-						<Toggle value={false} onChange={() => setView({ holdToSpeed: 2 })} />
+						<Toggle aria-label={gvar.gsm.options.flags.holdToSpeedUp} value={false} onChange={() => setView({ holdToSpeed: 2 })} />
 					)}
-				</div>
+				</OptionField>
 
 				{!showMore ? (
-					<Tooltip title={gvar.gsm.token.more}>
-						<button className="showMoreTooltip" onClick={() => setShowMore(true)}>
-							<TfiMoreAlt />
-						</button>
-					</Tooltip>
+					<Button aria-label={gvar.gsm.token.showMore} onClick={() => setShowMore(true)}>
+						{gvar.gsm.token.showMore}
+					</Button>
 				) : (
 					<>
+						{/* Long-press threshold */}
+						{!isMobile() && hasLongPressKey && (
+							<OptionField>
+								<OptionFieldLabel>
+									<span>{gvar.gsm.options.flags.longPressThreshold}</span>
+									<RegularTooltip title={gvar.gsm.options.flags.longPressThresholdTooltip} align="right" />
+								</OptionFieldLabel>
+
+								<div className="grid grid-cols-[max-content_max-content] items-center gap-x-1.25">
+									<NumericInput
+										noNull={true}
+										min={0.1}
+										max={3}
+										value={(view.longPressThreshold ?? DEFAULT_LONG_PRESS_THRESHOLD) / 1000}
+										onChange={(v) => setView({ longPressThreshold: Math.round(v * 1000) })}
+									/>
+									<Reset
+										active={view.longPressThreshold != undefined}
+										onClick={() => {
+											setView({ longPressThreshold: null })
+										}}
+									/>
+								</div>
+							</OptionField>
+						)}
+
+						{!isMobile() && hasDoubleTap && (
+							<OptionField>
+								<OptionFieldLabel>
+									<span>{gvar.gsm.options.flags.doubleTapThreshold}</span>
+									<RegularTooltip title={gvar.gsm.options.flags.doubleTapThresholdTooltip} align="right" />
+								</OptionFieldLabel>
+
+								<div className="grid grid-cols-[max-content_max-content] items-center gap-x-1.25">
+									<NumericInput
+										noNull={true}
+										min={0.06}
+										max={3}
+										value={(view.doubleTapThreshold ?? DEFAULT_DOUBLE_TAP_THRESHOLD) / 1000}
+										onChange={(v) => setView({ doubleTapThreshold: Math.round(v * 1000) })}
+									/>
+									<Reset
+										active={view.doubleTapThreshold != undefined}
+										onClick={() => {
+											setView({ doubleTapThreshold: null })
+										}}
+									/>
+								</div>
+							</OptionField>
+						)}
+
 						{!isMobile() && (
 							<>
 								{/* Font size */}
-								<div className="field marginDoubleTop">
+								<OptionField>
 									<span>{gvar.gsm.options.flags.textSize}</span>
 									<SliderMicro
 										value={view.fontSize ?? 1.0}
@@ -361,43 +479,73 @@ export function SectionFlags(props: {}) {
 										sliderMax={1.1}
 										sliderStep={0.01}
 									/>
-								</div>
+								</OptionField>
 
 								{/* Keyboard input */}
-								<div className="field">
-									<div className="labelWithTooltip">
+								<OptionField>
+									<OptionFieldLabel>
 										<span>{gvar.gsm.options.flags.keyboardInput}</span>
 										<RegularTooltip title={gvar.gsm.options.flags.keyboardInputTooltip} align="right" />
-									</div>
-									<select
+									</OptionFieldLabel>
+									<Select
+										aria-label={gvar.gsm.options.flags.keyboardInput}
 										value={view.virtualInput ? "v" : "q"}
-										onChange={async (e) => {
-											setView({ virtualInput: e.target.value === "v" })
+										onChanged={(newValue) => {
+											setView({ virtualInput: newValue === "v" })
 										}}
-									>
-										<option value="q">{gvar.gsm.options.flags.qwerty}</option>
-										<option value="v">{gvar.gsm.options.flags.virtual}</option>
-									</select>
-								</div>
+										options={[
+											{ key: "q", value: gvar.gsm.options.flags.qwerty },
+											{ key: "v", value: gvar.gsm.options.flags.virtual },
+										]}
+									/>
+								</OptionField>
 							</>
 						)}
 
 						{/* Speed presets */}
-						<div className="field">
+						<OptionField>
 							<span>{gvar.gsm.options.flags.speedPresets}</span>
-							<GearIcon onClick={(e) => setShowPresetModal(true)} />
-						</div>
+							<GearIcon className="text-foreground" onClick={(e) => setShowPresetModal(true)} />
+						</OptionField>
+
+						{/* Show promos */}
+						<PromoDismiss />
 					</>
 				)}
 			</div>
-		</div>
+		</OptionsSection>
+	)
+}
+
+/** Only rendered while promos are actually being shown. Toggling it off dismisses them for two weeks. */
+function PromoDismiss() {
+	const [view, setView] = useStateView(PROMO_VIEW_KEYS)
+	if (!isPromoShowing(view)) return null
+
+	return (
+		<OptionField>
+			<OptionFieldLabel>
+				<span>{"Show promos"}</span>
+				<RegularTooltip
+					title={"Occasional suggestions for our other projects, shown at the bottom of the popup. Turning this off hides them for two weeks."}
+					align="right"
+				/>
+			</OptionFieldLabel>
+			<Toggle
+				aria-label={"Show promos"}
+				value={true}
+				onChange={() => {
+					setView({ selfPromoHideTsR: Date.now() })
+				}}
+			/>
+		</OptionField>
 	)
 }
 
 function CircleWidget(props: { active?: boolean; setView: SetView; setShowWidgetModal: (v: boolean) => void }) {
 	return (
-		<div className="field indentFloat">
-			<div className="labelWithTooltip">
+		<OptionField>
+			<OptionFieldLabel>
 				<span>{gvar.gsm.options.flags.widget.option}</span>
 				<RegularTooltip
 					title={gvar.gsm.options.flags.widget.optionTooltip.concat(
@@ -405,16 +553,19 @@ function CircleWidget(props: { active?: boolean; setView: SetView; setShowWidget
 					)}
 					align="right"
 				/>
-			</div>
-			<div className="fieldValue">
+			</OptionFieldLabel>
+			<FloatingFieldValue>
 				<Toggle
+					aria-label={gvar.gsm.options.flags.widget.option}
 					value={!!props.active}
 					onChange={(e) => {
 						props.setView({ circleWidget: !props.active })
 					}}
 				/>
-				<div className="float">{!!props.active && <GearIcon onClick={(e) => props.setShowWidgetModal(true)} />}</div>
-			</div>
-		</div>
+				<div className="field-gear">
+					{!!props.active && <GearIcon className="text-foreground" onClick={(e) => props.setShowWidgetModal(true)} />}
+				</div>
+			</FloatingFieldValue>
+		</OptionField>
 	)
 }

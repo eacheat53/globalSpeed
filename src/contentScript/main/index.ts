@@ -1,4 +1,5 @@
-import { isFirefox, randomId } from "../../utils/helper"
+import { IS_FIREFOX_BUILD } from "../../utils/buildFlags"
+import { randomId } from "../../utils/helper"
 import { native } from "./utils/nativeCodes"
 import { seekNetflix } from "./utils/seekNetflix"
 
@@ -14,7 +15,7 @@ let client: StratumClient
 let ghostMode: GhostMode
 
 function main() {
-	if (isFirefox()) {
+	if (IS_FIREFOX_BUILD) {
 		if (window.loadedGsCtx) return
 		window.loadedGsCtx = true
 
@@ -71,6 +72,7 @@ function ensureSoundcloud() {
 }
 
 function ensureBaidu() {
+	return
 	if (!location.hostname.includes("pan.baidu.com")) return
 	let ua = navigator.userAgent
 
@@ -174,8 +176,17 @@ class StratumClient {
 	constructor() {
 		this.#parasite.id = "GS_PARASITE"
 		this.#parasiteRoot.addEventListener(this.#clientName, this.handle, { capture: true })
-		document.documentElement.appendChild(this.#parasite)
-		this.#parasite.dispatchEvent(new CustomEvent("GS_INIT", { detail: this.#key }))
+		this.init()
+		window.addEventListener("GS_SERVER_READY", () => this.init(), { capture: true })
+	}
+	init = () => {
+		const target = document.documentElement || document.head || document.body
+		if (!target) {
+			window.addEventListener("DOMContentLoaded", () => this.init(), { once: true })
+			return
+		}
+		target.appendChild(this.#parasite)
+		this.#parasite.dispatchEvent(new CustomEvent("GS_INIT", { bubbles: true, composed: true, detail: this.#key }))
 		this.#parasite.remove()
 	}
 	handle = (e: CustomEvent) => {

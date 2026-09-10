@@ -1,9 +1,10 @@
-import clsx from "clsx"
 import { useRef, useState } from "react"
 import { GoX } from "react-icons/go"
 import { MoveDrag } from "@/comps/MoveDrag"
 import { Tooltip } from "@/comps/Tooltip"
-import "./ListItem.css"
+import { Button } from "@/comps/ui/button"
+import { gvar } from "@/globalVar"
+import { cn } from "@/utils/helper"
 
 type ListItemProps = {
 	children?: React.ReactNode
@@ -23,24 +24,32 @@ export function ListItem(props: ListItemProps) {
 	return (
 		<div
 			ref={itemRef}
-			className={clsx("ListItem", {
-				focus,
-				spacing: props.spacing === 1,
-				doubleSpacing: props.spacing === 2,
-				disabled: !props.isEnabled,
-			})}
+			data-slot="list-item"
+			className={cn(
+				"relative mb-2.5 h-auto rounded-lg transition-[height] duration-100 ease-out last:mb-0 starting:h-0 dragging:transition-none last:[&>[data-slot=list-item-sub]]:border-transparent",
+				props.spacing === 1 && "mb-6.25",
+				props.spacing === 2 && "mb-10",
+				!props.isEnabled && "opacity-[.66]",
+				focus && "left-2.5 z-[2] shadow-[-4px_4px_4px_color-mix(in_oklab,black_40%,transparent)]",
+			)}
 		>
 			{props.label && (
-				<div className="ListItemLabel" onClick={props.onClearLabel}>
+				<div data-slot="list-item-label" className="cursor-ns-resize select-none">
 					<Tooltip title={gvar.gsm.token.delete}>
-						<span>
+						<span
+							className="mb-1.25 inline-block cursor-auto rounded-xl border border-border-subtle bg-secondary/75 px-3 py-2 text-lg italic select-auto [&:hover>svg]:w-auto [&:hover>svg]:pl-1.25"
+							onClick={props.onClearLabel}
+						>
 							{props.label}
-							<GoX />
+							<GoX className="inline-block w-0 overflow-hidden align-middle text-2xl transition-[width,padding] duration-150 ease-out [interpolate-size:allow-keywords]" />
 						</span>
 					</Tooltip>
 				</div>
 			)}
-			<div className="ListItemCore">
+			<div
+				data-slot="list-item-core"
+				className="relative grid cursor-auto grid-cols-[max-content_1fr_max-content] items-center gap-x-1.25 bg-background pt-2.5 select-auto"
+			>
 				{/* Grippper */}
 				<MoveDrag setFocus={(v) => setFocus(v)} itemRef={itemRef} listRef={props.listRef} onMove={props.onMove} />
 
@@ -48,12 +57,12 @@ export function ListItem(props: ListItemProps) {
 
 				{/* Delete */}
 				<Tooltip title={gvar.gsm.token.delete}>
-					<button className="close icon" onClick={(e) => props.onRemove()}>
+					<Button variant="icon" size="icon-auto" aria-label={gvar.gsm.token.delete} onClick={(e) => props.onRemove()}>
 						<GoX size="1.6rem" />
-					</button>
+					</Button>
 				</Tooltip>
 			</div>
-			<div className="ListItemSub"></div>
+			<div data-slot="list-item-sub" className="border-0 border-b border-border pb-3.75"></div>
 		</div>
 	)
 }

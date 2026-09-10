@@ -1,4 +1,5 @@
 import debounce from "lodash.debounce"
+import { gvar } from "@/globalVar"
 import { requestGsm } from "@/utils/gsm"
 import { areYouSure, assertType, clamp, createElement as m, randomNumber, replaceArgs } from "@/utils/helper"
 import {
@@ -14,8 +15,8 @@ import {
 	questionIcon,
 } from "../../defaults/icons"
 import { Popover } from "../isolated/utils/Popover"
-import styles from "./styles.css?raw"
-import pageStyles from "./stylesAux.css?raw"
+import styles from "./styles.css?inline"
+import pageStyles from "./stylesAux.css?inline"
 
 const ERASER_MIN = 5
 const ERASER_MAX = 200
@@ -90,10 +91,10 @@ class PageDraw extends Popover {
 		this._wrapper.addEventListener("pointerleave", this.handlePointerLeave)
 		document.addEventListener("pointerleave", this.clearIsDrawing)
 
-		this.pageStyle.innerHTML = pageStyles
+		this.pageStyle.textContent = pageStyles
 		document.documentElement.appendChild(this.pageStyle)
 
-		this.style.innerHTML = styles
+		this.style.textContent = styles
 		this.resist.appendChild(this.canvas)
 		this._div.appendChild(this.style)
 		this._div.appendChild(this.mask)
@@ -734,10 +735,10 @@ const createScaffold = (wrapper: HTMLDivElement) => {
 	header.appendChild(hide)
 	header.appendChild(remove)
 
-	const drawMode = m(`<button id="drawMode">${paintIcon}<span>${gvar.gsm.pageDraw.draw}</span></button>`) as HTMLButtonElement
+	const drawMode = createModeButton("drawMode", paintIcon, gvar.gsm.pageDraw.draw)
 	drawMode.classList.add("selected")
-	const eraseMode = m(`<button id="eraseMode">${eraserIcon}<span>${gvar.gsm.pageDraw.erase}</span></button>`) as HTMLButtonElement
-	const selectMode = m(`<button id="selectMode">${cursorIcon}<span>${gvar.gsm.pageDraw.select}</span></button>`) as HTMLButtonElement
+	const eraseMode = createModeButton("eraseMode", eraserIcon, gvar.gsm.pageDraw.erase)
+	const selectMode = createModeButton("selectMode", cursorIcon, gvar.gsm.pageDraw.select)
 	selectMode.title = gvar.gsm.pageDraw.selectTooltip
 
 	mode.appendChild(drawMode)
@@ -820,10 +821,18 @@ function generateColors(colors: string[]) {
 		const b = document.createElement("button")
 		b.classList.add("color")
 		b.style.backgroundColor = c
-		b.innerHTML = "​"
+		b.textContent = "​"
 		if (c === "red") b.classList.add("selected")
 		return b
 	})
+}
+
+function createModeButton(id: string, icon: string, label: string) {
+	const button = createElement("button", { id }) as HTMLButtonElement
+	const text = document.createElement("span")
+	text.textContent = label
+	button.append(m(icon), text)
+	return button
 }
 
 class MoveableWrapper {

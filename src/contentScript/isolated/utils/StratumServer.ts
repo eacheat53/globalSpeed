@@ -10,6 +10,7 @@ export class StratumServer {
 
 	constructor() {
 		window.addEventListener("GS_INIT", this.handleInit, { capture: true, once: true })
+		window.dispatchEvent(new CustomEvent("GS_SERVER_READY"))
 	}
 	handleInit = (e: CustomEvent) => {
 		if (!(e.target instanceof HTMLDivElement && e.target.id === "GS_PARASITE" && e.target.shadowRoot)) return

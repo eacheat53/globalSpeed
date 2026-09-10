@@ -1,10 +1,12 @@
 import { useState } from "react"
+import { Select } from "@/comps/Select"
+import { Button } from "@/comps/ui/button"
 import { svgFilterGenerate, svgFilterInfos, svgFilterIsValid } from "@/defaults/filters"
 import { SVG_FILTER_ADDITIONAL } from "@/defaults/svgFilterAdditional"
+import { gvar } from "@/globalVar"
 import { SvgFilter } from "@/types"
 import { produce } from "@/utils/helper"
 import { SvgFilterItem } from "./SvgFilterItem"
-import "./SvgFilterList.css"
 
 const filterTypes = Object.keys(svgFilterInfos)
 filterTypes.splice(
@@ -16,9 +18,9 @@ export function SvgFilterList(props: { svgFilters: SvgFilter[]; onChange: (newSv
 	const [command, setCommand] = useState("rgb")
 
 	return (
-		<div className="SvgFilterList">
-			<div className="header">{gvar.gsm.filter.otherFilters.header}</div>
-			<div className="list">
+		<div className="mt-3.75 border-t border-border">
+			<div className="mt-1.5 text-center text-sm opacity-50">{gvar.gsm.filter.otherFilters.header}</div>
+			<div>
 				{props.svgFilters.map((f) => (
 					<SvgFilterItem
 						key={f.id}
@@ -40,18 +42,15 @@ export function SvgFilterList(props: { svgFilters: SvgFilter[]; onChange: (newSv
 					/>
 				))}
 			</div>
-			<div className="controls">
-				<select
+			<div className="mt-2.5 flex gap-x-2.5">
+				<Select
 					value={command}
-					onChange={(e) => {
-						setCommand(e.target.value)
+					onChanged={(newValue) => {
+						setCommand(newValue)
 					}}
-				>
-					{filterTypes.map((t) => (
-						<option value={t}>{(gvar.gsm.filter.otherFilters as any)[t]}</option>
-					))}
-				</select>
-				<button
+					options={filterTypes.map((t) => ({ key: t, value: (gvar.gsm.filter.otherFilters as any)[t] }))}
+				/>
+				<Button
 					onClick={(e) => {
 						props.onChange(
 							produce(props.svgFilters, (dArr) => {
@@ -64,7 +63,7 @@ export function SvgFilterList(props: { svgFilters: SvgFilter[]; onChange: (newSv
 					}}
 				>
 					{gvar.gsm.token.create}
-				</button>
+				</Button>
 			</div>
 		</div>
 	)

@@ -7,3 +7,8 @@ z.md
 .DS_Store
 **/*.env
 private/
+.agents/
+.claude/
+tools/localeTools/*
+!tools/localeTools/index.cjs
+AGENTS.md

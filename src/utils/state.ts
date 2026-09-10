@@ -1,5 +1,6 @@
 import type { DebouncedFunc } from "lodash"
 import debounce from "lodash.debounce"
+import { gvar } from "@/globalVar"
 import {
 	AnyDict,
 	Context,
@@ -398,7 +399,13 @@ export async function dumpConfig() {
 
 export async function restoreConfig(config: State, clearBase = true) {
 	// Base clear all session and global values.
-	const newItems = clearBase ? Object.fromEntries((await getKeysByPrefix(PREFIX_SETS.G)).map((v) => [v, null])) : {}
+	const newItems = clearBase
+		? Object.fromEntries(
+				(await getKeysByPrefix(PREFIX_SETS.G)).map((v): [string, any] => {
+					return [v, null]
+				}),
+			)
+		: {}
 
 	for (let key in config) {
 		newItems[`g:${key}`] = config[key as keyof State]
@@ -420,30 +427,10 @@ export async function getKeysByPrefix(prefixes: string[], items?: AnyDict) {
 	return Object.keys(items).filter((v) => prefixes.some((prefix) => v.startsWith(prefix)))
 }
 
-function pruneObjectNull(object: any) {
-	for (let key in object) {
-		if (object[key] == null) {
-			delete object[key]
-		}
-	}
-}
-
 export async function localGetAuto(keys?: string | string[] | AnyDict): Promise<AnyDict> {
 	return gvar.es ? gvar.es.get(keys) : chrome.storage.local.get(keys)
 }
 
 export async function localSetAuto(override: AnyDict): Promise<void> {
 	return gvar.es ? gvar.es.set(override) : chrome.storage.local.set(override)
-}
-
-const TR_REGEX = /(?:t|r|c):\d+\:/
-
-function extractKey(storedKey: string) {
-	if (storedKey.startsWith("g:")) return storedKey.slice(2)
-	if (["t", "r", "c"].some((scheme) => storedKey.startsWith(scheme))) {
-		const match = TR_REGEX.exec(storedKey)
-		if (!match) return
-		return storedKey.slice(match[0].length)
-	}
-	return storedKey
 }
