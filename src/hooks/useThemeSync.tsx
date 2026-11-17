@@ -3,17 +3,30 @@ import { gvar } from "@/globalVar"
 import { isMobile } from "@/utils/helper"
 import { useStateView } from "../hooks/useStateView"
 
-export const systemIsDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+function applyDarkTheme(isDark: boolean) {
+	if (isDark) {
+		document.documentElement.classList.add("darkTheme")
+	} else {
+		document.documentElement.classList.remove("darkTheme")
+	}
+}
 
 export function useThemeSync() {
 	const [view] = useStateView({ darkTheme: true, fontSize: true })
 	useEffect(() => {
 		document.documentElement.style.setProperty("--font-size-scalar", `${view?.fontSize ?? (isMobile() ? 1.3 : 1)}`)
 
-		if (view?.darkTheme == null ? systemIsDark : view?.darkTheme) {
-			document.documentElement.classList.add("darkTheme")
+		if (view?.darkTheme == null) {
+			const mql = window.matchMedia("(prefers-color-scheme: dark)")
+			applyDarkTheme(mql.matches)
+
+			const handler = (e: MediaQueryListEvent) => {
+				applyDarkTheme(e.matches)
+			}
+			mql.addEventListener("change", handler)
+			return () => mql.removeEventListener("change", handler)
 		} else {
-			document.documentElement.classList.remove("darkTheme")
+			applyDarkTheme(!!view.darkTheme)
 		}
 	}, [view?.darkTheme, view?.fontSize])
 

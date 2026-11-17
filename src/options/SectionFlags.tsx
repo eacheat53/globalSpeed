@@ -13,14 +13,13 @@ import { Button } from "@/comps/ui/button"
 import { getDefaultURLCondition } from "@/defaults"
 import { DEFAULT_DOUBLE_TAP_THRESHOLD, DEFAULT_LONG_PRESS_THRESHOLD, getDefaultSpeedSlider } from "@/defaults/constants"
 import { gvar } from "@/globalVar"
-import { systemIsDark } from "@/hooks/useThemeSync"
 import { Context, CONTEXT_KEYS, InitialContext, StateView } from "@/types"
 import { clamp, cn, isMobile, produce } from "@/utils/helper"
 import { isPromoShowing, PROMO_VIEW_KEYS } from "@/utils/promoUtils"
 import { fetchView } from "@/utils/state"
 import { MAX_SPEED_CHROMIUM, MIN_SPEED_CHROMIUM } from "../defaults/constants"
 import { SetView, useStateView } from "../hooks/useStateView"
-import { getValidLocale, LOCALE_MAP } from "../utils/gsm"
+import { LOCALE_MAP } from "../utils/gsm"
 import { IndicatorModal } from "./IndicatorModal"
 import { LocalFilesField } from "./LocalFilesField"
 import { OptionField } from "./OptionField"
@@ -110,63 +109,40 @@ export function SectionFlags(props: {}) {
 
 							{gvar.gsm.options.flags._languageTooltip && <RegularTooltip title={gvar.gsm.options.flags._languageTooltip} align="right" />}
 						</OptionFieldLabel>
-						<div className="grid grid-cols-[max-content_max-content] items-center gap-x-1.25">
-							<Select
-								className="text-center"
-								aria-label={gvar.gsm.options.flags.language}
-								value={view.language || getValidLocale()}
-								onChanged={(newValue) => {
-									setView({ language: newValue === getValidLocale() ? null : newValue })
-								}}
-								options={Object.keys(LOCALE_MAP).map((key) => ({
+						<Select
+							className="text-center"
+							aria-label={gvar.gsm.options.flags.language}
+							value={view.language && view.language in LOCALE_MAP ? view.language : "system"}
+							onChanged={(newValue) => {
+								setView({ language: newValue === "system" ? null : newValue })
+							}}
+							options={[
+								{ key: "system", value: gvar.gsm.options.flags.languageSystem },
+								...Object.keys(LOCALE_MAP).map((key) => ({
 									key,
 									value: LOCALE_MAP[key].display,
 									title: LOCALE_MAP[key].title,
-								}))}
-							/>
-							{view.language != null && (
-								<Tooltip title={gvar.gsm.options.flags.languageSystem}>
-									<Button
-										variant="icon"
-										size="icon-auto"
-										aria-label={gvar.gsm.options.flags.languageSystem}
-										onClick={() => {
-											setView({ language: null })
-										}}
-									>
-										<GoX size="1.6rem" />
-									</Button>
-								</Tooltip>
-							)}
-						</div>
+								})),
+							]}
+						/>
 					</OptionField>
 
-					{/* Dark theme */}
+					{/* Theme */}
 					<OptionField>
-						<span>{gvar.gsm.options.flags.darkTheme}</span>
-						<div className="grid grid-cols-[max-content_max-content] items-center gap-x-1.25">
-							<Toggle
-								aria-label={gvar.gsm.options.flags.darkTheme}
-								value={view.darkTheme ?? systemIsDark}
-								onChange={(v) => {
-									setView({ darkTheme: v === systemIsDark ? null : v })
-								}}
-							/>
-							{view.darkTheme != null && (
-								<Tooltip title={gvar.gsm.options.flags.darkThemeSystem}>
-									<Button
-										variant="icon"
-										size="icon-auto"
-										aria-label={gvar.gsm.options.flags.darkThemeSystem}
-										onClick={() => {
-											setView({ darkTheme: null })
-										}}
-									>
-										<GoX size="1.6rem" />
-									</Button>
-								</Tooltip>
-							)}
-						</div>
+						<span>{gvar.gsm.options.flags.theme}</span>
+						<Select
+							className="text-center"
+							aria-label={gvar.gsm.options.flags.theme}
+							value={view.darkTheme == null ? "system" : view.darkTheme ? "dark" : "light"}
+							onChanged={(newValue) => {
+								setView({ darkTheme: newValue === "system" ? null : newValue === "dark" })
+							}}
+							options={[
+								{ key: "system", value: gvar.gsm.options.flags.themeSystem },
+								{ key: "light", value: gvar.gsm.options.flags.themeLight },
+								{ key: "dark", value: gvar.gsm.options.flags.themeDark },
+							]}
+						/>
 					</OptionField>
 
 					{/* Local file and incognito access */}

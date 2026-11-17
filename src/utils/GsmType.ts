@@ -465,10 +465,14 @@ export type Gsm = {
 			/** Use system language */
 			languageSystem: string
 			_languageTooltip?: string
-			/** Dark theme */
-			darkTheme: string
-			/** Use system theme */
-			darkThemeSystem: string
+			/** Theme */
+			theme: string
+			/** Light */
+			themeLight: string
+			/** Dark */
+			themeDark: string
+			/** System */
+			themeSystem: string
 			/** Show badge */
 			showBadge: string
 			/** The badge is the text on the extension icon */
